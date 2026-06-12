@@ -1,14 +1,38 @@
-# Neon Harvest Rush
+# بو رضّاعة: مهمة الديوانية
 
-A fast static browser arcade game built with React, TypeScript, Vite, and Canvas.
+لعبة موبايل عربية باللهجة الكويتية مبنية بـ Vite + React + TypeScript + Canvas.
 
-Move the ship, collect yellow energy stars, chain combos, grab shields and magnets, and avoid red pulse hazards before the timer runs out.
+## تعديل الاسم والليدربورد
 
-## Controls
+عدّل الملف `src/config.ts`:
 
-- Touch or mouse: tap and drag to steer.
-- Keyboard: WASD or arrow keys to move.
-- Space: pause or resume.
+```ts
+export const CONFIG = {
+  PLAYER_NAME: 'بو رضّاعة',
+  SUPABASE_URL: '',
+  SUPABASE_ANON_KEY: '',
+}
+```
+
+- غيّر `PLAYER_NAME` لاسم صاحبك.
+- ضع `SUPABASE_URL` و `SUPABASE_ANON_KEY` لتفعيل الليدربورد.
+- إذا تركت مفاتيح Supabase فاضية، اللعبة تشتغل كاملة ويتخطى الليدربورد الإرسال.
+
+## Supabase SQL
+
+انسخ هذا في Supabase Dashboard مرة واحدة:
+
+```sql
+create table if not exists public.leaderboard (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (char_length(name) between 1 and 20),
+  score int not null check (score between 0 and 5000),
+  created_at timestamptz not null default now()
+);
+alter table public.leaderboard enable row level security;
+create policy "public insert" on public.leaderboard for insert to anon with check (true);
+create policy "public read" on public.leaderboard for select to anon using (true);
+```
 
 ## Local Development
 
@@ -17,13 +41,20 @@ npm install
 npm run dev
 ```
 
-## Quality Checks
+## Checks
 
 ```bash
 npm run lint
 npm run build
 ```
 
-## Deploy
+## Cloudflare Pages Deploy
 
-The `main` branch deploys to GitHub Pages through `.github/workflows/deploy.yml`.
+- Framework preset: `Vite`
+- Build command: `npm run build`
+- Output directory: `dist`
+- Node version: `24`
+
+## GitHub Pages
+
+This repo also deploys through `.github/workflows/deploy.yml`.
