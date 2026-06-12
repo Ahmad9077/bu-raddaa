@@ -529,9 +529,15 @@ function App() {
       stateRef.current.player.y = clamp(stateRef.current.player.y, 78, rect.height - 24)
     }
 
+    let resizeFrame = 0
+    const scheduleResize = () => {
+      cancelAnimationFrame(resizeFrame)
+      resizeFrame = requestAnimationFrame(resize)
+    }
+
     resize()
-    const observer = new ResizeObserver(resize)
-    observer.observe(canvas)
+    const scheduledObserver = new ResizeObserver(scheduleResize)
+    scheduledObserver.observe(canvas)
 
     let frame = 0
     let snapshotTimer = 0
@@ -562,7 +568,8 @@ function App() {
 
     return () => {
       cancelAnimationFrame(frame)
-      observer.disconnect()
+      cancelAnimationFrame(resizeFrame)
+      scheduledObserver.disconnect()
     }
   }, [snapshot.status])
 
