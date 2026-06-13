@@ -146,10 +146,11 @@ function useActionAudio(active: boolean, pattern: number[], interval = 190, volu
 }
 
 function Hud({ hud }: { hud: HudState }) {
+  const wifeMood = hud.wife < 34 ? '😡' : hud.wife > 66 ? '😍' : '😐'
   return (
     <header className="hud">
       <div className="wife-meter">
-        <span>رضا الزوجة 👸</span>
+        <span>رضا الزوجة 👸 {wifeMood}</span>
         <div className="bar">
           <i style={{ width: `${hud.wife}%` }} />
         </div>
@@ -602,7 +603,7 @@ function Stage2({
       const hurt = (message: string) => {
         if (now < s.invulnUntil || failed) return
         s.hearts -= 1
-        setWife((value) => clamp(value - 7, 0, 100))
+        setWife((value) => clamp(value + 6, 0, 100))
         setToast(message)
         if (s.hearts <= 0) {
           failed = true
@@ -621,7 +622,7 @@ function Stage2({
         player.vy = -560
         player.onGround = false
         setToast('قفزة!')
-        setWife((value) => clamp(value + 1, 0, 100))
+        setWife((value) => clamp(value - 1, 0, 100))
       }
       s.jumpQueued = false
 
@@ -654,7 +655,7 @@ function Stage2({
           item.taken = true
           s.heartsTaken += 1
           s.hearts = Math.min(3, s.hearts + 1)
-          setWife((value) => clamp(value + 3, 0, 100))
+          setWife((value) => clamp(value - 3, 0, 100))
           setToast('قلب إضافي ❤️')
         }
       }
@@ -672,7 +673,7 @@ function Stage2({
             foe.alive = false
             player.vy = -360
             player.onGround = false
-            setWife((value) => clamp(value + 4, 0, 100))
+            setWife((value) => clamp(value - 4, 0, 100))
             setToast(foe.kind === 'wife' ? 'قفزت فوق الزوجة!' : 'تفاديت سليمان!')
           } else {
             hurt(foe.kind === 'wife' ? 'الزوجة مسكتك 👸' : 'سليمان صادك 👶')
@@ -864,6 +865,7 @@ function Stage3({
     ready: false,
     touchStart: null as null | SnakeCell,
     wallGraceUntil: 0,
+    selfGraceUntil: 0,
     pauseUntil: 0,
     boostText: '',
     done: false,
@@ -915,6 +917,7 @@ function Stage3({
     s.nextDirection = 'right'
     s.lastStep = 0
     s.wallGraceUntil = 0
+    s.selfGraceUntil = 0
     s.pauseUntil = 0
     s.boostText = ''
     spawnTarget()
@@ -985,10 +988,21 @@ function Stage3({
             return
           }
         }
+        if (selfHit) {
+          if (!s.selfGraceUntil) {
+            s.selfGraceUntil = now + 520
+            setToast('انتبه! الثعبان بيلف على نفسه')
+          }
+          if (now < s.selfGraceUntil) {
+            frame = requestAnimationFrame(loop)
+            return
+          }
+        }
         if (wallHit || selfHit) {
           s.hearts -= 1
-          setWife((value) => clamp(value - 8, 0, 100))
+          setWife((value) => clamp(value + 6, 0, 100))
           s.wallGraceUntil = 0
+          s.selfGraceUntil = 0
           setToast(wallHit ? 'دعمت بالطوفة!' : 'عضّيت نفسك!')
           if (s.hearts <= 0) {
             onFail('FAIL_3')
@@ -997,10 +1011,11 @@ function Stage3({
           resetSnake()
         } else {
           s.wallGraceUntil = 0
+          s.selfGraceUntil = 0
           s.snake.unshift(nextHead)
           if (nextHead.x === s.target.x && nextHead.y === s.target.y) {
             s.eaten += 1
-            setWife((value) => clamp(value + 2, 0, 100))
+            setWife((value) => clamp(value - 2, 0, 100))
             if (s.eaten >= winTarget) {
               setToast('الثعبان شبع!')
             } else if (s.eaten % 3 === 0) {
@@ -1106,7 +1121,7 @@ function Stage3({
   }
 
   return (
-    <StageShell hud={hud} title="الثعبان العظيم" toast={toast} hideAvatar>
+    <StageShell hud={hud} title="ثعبان المرجلة" toast={toast} hideAvatar>
       <canvas
         ref={canvasRef}
         className="stage-canvas snake-canvas"
@@ -1209,6 +1224,7 @@ function App() {
           <h1>نجحت بالمهمة يا {CONFIG.PLAYER_NAME}!</h1>
           <div className="whatsapp">
             <p>الأسطورة وصل 🔥🔥🔥</p>
+            <p>صحيح أن كل الطرق تؤدي إلى روما، لكن بعضها أصعب من بعض</p>
           </div>
           <button type="button" onClick={restart}>العب من جديد 🎮</button>
         </section>
