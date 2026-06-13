@@ -1140,14 +1140,6 @@ function Stage3({
           if (touch) handlePointerMove(touch.clientX, touch.clientY)
         }}
       />
-      <div className="snake-pad" aria-label="Snake controls">
-        <button type="button" aria-label="Up" onClick={() => setDirection('up')}>▲</button>
-        <div>
-          <button type="button" aria-label="Left" onClick={() => setDirection('left')}>◀</button>
-          <button type="button" aria-label="Down" onClick={() => setDirection('down')}>▼</button>
-          <button type="button" aria-label="Right" onClick={() => setDirection('right')}>▶</button>
-        </div>
-      </div>
     </StageShell>
   )
 }

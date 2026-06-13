@@ -246,55 +246,6 @@ button:focus-visible {
   min-height: 470px;
 }
 
-.snake-pad {
-  width: min(100%, 330px);
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-  margin: 10px auto 18px;
-  direction: ltr;
-}
-
-.snake-pad > div {
-  display: grid;
-  grid-template-columns: repeat(3, 64px);
-  gap: 8px;
-}
-
-.snake-pad button {
-  width: 64px;
-  min-height: 54px;
-  padding: 0;
-  border-radius: 14px;
-  font-size: 1.25rem;
-  line-height: 1;
-}
-
-.dpad {
-  width: min(100%, 310px);
-  display: grid;
-  grid-template-columns: repeat(3, 64px);
-  grid-template-rows: repeat(3, 64px);
-  justify-content: center;
-  gap: 8px;
-  margin: 10px auto 16px;
-}
-
-.dpad-button {
-  min-height: 64px;
-  width: 64px;
-  padding: 0;
-  border-radius: 18px;
-  font-size: 1.4rem;
-}
-
-.dpad-core {
-  display: grid;
-  place-items: center;
-  border-radius: 18px;
-  background: rgba(23, 95, 120, 0.12);
-}
-
 .avatar {
   position: fixed;
   z-index: 5;
@@ -440,13 +391,6 @@ button:focus-visible {
     font-size: 2rem;
   }
 
-  .dpad {
-    margin: 6px auto 8px;
-  }
-
-  .snake-pad {
-    margin: 6px auto 10px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
