@@ -2,8 +2,8 @@
 
 :root {
   font-family: Cairo, system-ui, sans-serif;
-  color: #f5efe6;
-  background: #0f0a04;
+  color: #14333d;
+  background: #f7fbf7;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -16,7 +16,7 @@
 
 html {
   min-width: 320px;
-  background: #0f0a04;
+  background: #f7fbf7;
 }
 
 body {

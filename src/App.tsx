@@ -25,6 +25,7 @@ const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y)
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
 const totalScore = (scores: Record<StageKey, number>, wife: number) =>
   clamp(Math.round(scores.s1 + scores.s2 + scores.s3 + wife * 3), 0, 5000)
+const PLAYER_PHOTO_SRC = `${import.meta.env.BASE_URL}bo-raddaa.jpg`
 const stageLabel = ['المرحلة ١ من ٣', 'المرحلة ٢ من ٣', 'المرحلة ٣ من ٣']
 const failText: Record<FailKind, string> = {
   FAIL_1: 'البيبي مجوّع والزوجة عصبية 😭 — ما راح تطلع الليلة',
@@ -131,6 +132,7 @@ function Stage1({
   onFail: (kind: FailKind) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const photoRef = useRef<HTMLImageElement | null>(null)
   useCanvasResize(canvasRef)
   const [hud, setHud] = useState<HudState>({ stage: 1, hearts: 3, wife })
   const [toast, setToast] = useState('المرحلة الأولى: البيبي يبي رضعته الحين')
@@ -141,12 +143,18 @@ function Stage1({
     misses: 0,
     currentFeedFails: 0,
     hearts: 3,
-    bottle: { x: 52, y: 440 },
+    feeder: { x: 64, y: 390 },
     stunned: 0,
     hold: 0,
     swat: null as null | { x: number; y: number; fromLeft: boolean; age: number; active: boolean },
     done: false,
   })
+
+  useEffect(() => {
+    const image = new Image()
+    image.src = PLAYER_PHOTO_SRC
+    photoRef.current = image
+  }, [])
 
   useEffect(() => {
     let frame = 0
@@ -165,8 +173,8 @@ function Stage1({
       const elapsed = (now - s.start) / 1000
       const w = rect.width
       const h = rect.height
-      const mouthOpenWindow = Math.max(1.2, 2.8 - s.feed * 0.3)
-      const cycle = mouthOpenWindow + 1.5
+      const mouthOpenWindow = Math.max(1.55, 3.15 - s.feed * 0.22)
+      const cycle = mouthOpenWindow + 1.2
       const cycleTime = elapsed % cycle
       const mouthOpen = cycleTime < mouthOpenWindow
       const baby = {
@@ -174,16 +182,17 @@ function Stage1({
         y: h * 0.34 + Math.sin(elapsed * 2.4) * 22,
       }
       const mouth = { x: baby.x, y: baby.y + 26 }
-      const nearMouth = dist(s.bottle, mouth) < 30
+      const nearMouth = dist(s.feeder, mouth) < 52
+      const nearFeedZone = dist(s.feeder, mouth) < 66
       const isStunned = now < s.stunned
 
       if (nearMouth && mouthOpen && !isStunned) {
         s.hold += dt
-        if (!s.swat && Math.random() < 0.009 + s.feed * 0.0018) {
+        if (!s.swat && Math.random() < 0.006 + s.feed * 0.0012) {
           s.swat = { x: baby.x + (Math.random() > 0.5 ? -78 : 78), y: baby.y + 8, fromLeft: Math.random() > 0.5, age: 0, active: false }
           setToast('انتبه! كف البيبي بالطريق ⚠️')
         }
-        if (s.hold >= 1.5) {
+        if (s.hold >= 1.15) {
           s.feed += 1
           s.currentFeedFails = 0
           s.hold = 0
@@ -196,12 +205,12 @@ function Stage1({
             return
           }
         }
-      } else if (s.hold > 0 && !isStunned) {
+      } else if (s.hold > 0 && !isStunned && (!nearFeedZone || !mouthOpen)) {
         s.hold = 0
         s.misses += 1
         s.currentFeedFails += 1
         setWife((value) => clamp(value - 5, 0, 100))
-        setToast('لا تحرك الرضّاعة! 😭')
+        setToast('لا تحرك بو رضّاعة عن البيبي! 😭')
         if (s.currentFeedFails >= 3) {
           s.currentFeedFails = 0
           s.hearts -= 1
@@ -219,9 +228,9 @@ function Stage1({
         const travel = clamp((s.swat.age - 0.3) / 0.45, 0, 1)
         s.swat.x = baby.x + (s.swat.fromLeft ? -88 + travel * 176 : 88 - travel * 176)
         s.swat.y = baby.y + 6
-        if (s.swat.active && dist(s.swat, s.bottle) < 40) {
+        if (s.swat.active && dist(s.swat, s.feeder) < 46) {
           s.stunned = now + 600
-          s.bottle = { x: s.swat.fromLeft ? 44 : w - 44, y: h - 86 }
+          s.feeder = { x: s.swat.fromLeft ? 60 : w - 60, y: h - 116 }
           s.hold = 0
           s.misses += 1
           s.currentFeedFails += 1
@@ -234,13 +243,13 @@ function Stage1({
       }
 
       ctx.clearRect(0, 0, w, h)
-      ctx.fillStyle = '#1E1206'
+      ctx.fillStyle = '#f7fbf7'
       ctx.fillRect(0, 0, w, h)
-      ctx.fillStyle = 'rgba(245,166,35,.1)'
+      ctx.fillStyle = 'rgba(28, 127, 147, .12)'
       for (let x = -20; x < w; x += 34) {
         ctx.fillRect(x + ((elapsed * 12) % 34), 0, 3, h)
       }
-      ctx.fillStyle = 'rgba(245, 166, 35, 0.22)'
+      ctx.fillStyle = 'rgba(49, 151, 149, 0.16)'
       ctx.beginPath()
       ctx.arc(baby.x, baby.y + 4, Math.min(74, w * 0.17), 0, Math.PI * 2)
       ctx.fill()
@@ -254,15 +263,58 @@ function Stage1({
       if (s.hold > 0) {
         ctx.strokeStyle = '#F5A623'
         ctx.beginPath()
-        ctx.arc(mouth.x, mouth.y, 44, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (s.hold / 1.5))
+        ctx.arc(mouth.x, mouth.y, 48, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (s.hold / 1.15))
         ctx.stroke()
       }
       if (s.swat) {
         if (!s.swat.active) drawEmoji(ctx, '⚠️', s.swat.x, s.swat.y - 38, 28)
         drawEmoji(ctx, '✋', s.swat.x, s.swat.y, 38)
       }
-      drawEmoji(ctx, '🍼', s.bottle.x, s.bottle.y, 54)
-      ctx.fillStyle = '#F5EFE6'
+      const photo = photoRef.current
+      const photoW = clamp(w * 0.21, 104, 138)
+      const photoH = photoW * 1.26
+      const photoX = s.feeder.x - photoW / 2
+      const photoY = s.feeder.y - photoH * 0.73
+      ctx.save()
+      ctx.beginPath()
+      ctx.roundRect(photoX, photoY, photoW, photoH, 20)
+      ctx.clip()
+      if (photo?.complete && photo.naturalWidth > 0) {
+        ctx.drawImage(photo, photoX, photoY, photoW, photoH)
+      } else {
+        ctx.fillStyle = '#ffe6be'
+        ctx.fillRect(photoX, photoY, photoW, photoH)
+        drawEmoji(ctx, '🧔', s.feeder.x, photoY + photoH * 0.42, photoW * 0.42)
+      }
+      ctx.restore()
+      ctx.strokeStyle = '#175f78'
+      ctx.lineWidth = 4
+      ctx.beginPath()
+      ctx.roundRect(photoX, photoY, photoW, photoH, 20)
+      ctx.stroke()
+
+      const openTarget = mouthOpen && nearFeedZone
+      ctx.fillStyle = openTarget ? '#fff7dd' : '#ffffffcc'
+      ctx.strokeStyle = openTarget ? '#30A46C' : '#175f78'
+      ctx.lineWidth = 4
+      ctx.beginPath()
+      ctx.ellipse(s.feeder.x, s.feeder.y, 20, 14, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.stroke()
+      ctx.fillStyle = openTarget ? '#30A46C' : '#175f78'
+      ctx.font = '900 12px Cairo, sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(openTarget ? 'يفتح' : 'هدف', s.feeder.x, s.feeder.y)
+
+      ctx.strokeStyle = 'rgba(23, 95, 120, .35)'
+      ctx.setLineDash([6, 7])
+      ctx.beginPath()
+      ctx.moveTo(s.feeder.x, s.feeder.y)
+      ctx.lineTo(s.feeder.x, s.feeder.y + 90)
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.fillStyle = '#14333d'
       ctx.font = '900 22px Cairo, sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText(`${s.feed}/4`, w / 2, h - 24)
@@ -273,26 +325,26 @@ function Stage1({
     return () => cancelAnimationFrame(frame)
   }, [onFail, onWin, setWife, wife])
 
-  const moveBottle = (clientX: number, clientY: number) => {
+  const moveFeeder = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current
     if (!canvas || performance.now() < state.current.stunned) return
     const rect = canvas.getBoundingClientRect()
-    state.current.bottle = {
+    state.current.feeder = {
       x: clamp(clientX - rect.left, 24, rect.width - 24),
-      y: clamp(clientY - rect.top, 28, rect.height - 28),
+      y: clamp(clientY - rect.top - 90, 42, rect.height - 42),
     }
   }
 
   return (
-    <StageShell hud={hud} title="صوّب الرضّاعة 🍼" toast={toast}>
+    <StageShell hud={hud} title="قرّب بو رضّاعة للبيبي 🍼" toast={toast}>
       <canvas
         ref={canvasRef}
         className="stage-canvas"
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId)
-          moveBottle(e.clientX, e.clientY)
+          moveFeeder(e.clientX, e.clientY)
         }}
-        onPointerMove={(e) => moveBottle(e.clientX, e.clientY)}
+        onPointerMove={(e) => moveFeeder(e.clientX, e.clientY)}
       />
     </StageShell>
   )
@@ -410,18 +462,18 @@ function Stage2({
         }
       }
       ctx.clearRect(0, 0, w, h)
-      ctx.fillStyle = '#1E1206'
+      ctx.fillStyle = '#f7fbf7'
       ctx.fillRect(0, 0, w, h)
       const laneW = w / 4
       for (let i = 0; i < 4; i += 1) {
-        ctx.fillStyle = i % 2 ? 'rgba(245,166,35,.07)' : 'rgba(245,239,230,.04)'
+        ctx.fillStyle = i % 2 ? 'rgba(23,95,120,.08)' : 'rgba(245,166,35,.10)'
         ctx.fillRect(i * laneW, 0, laneW, h)
-        ctx.strokeStyle = 'rgba(245,166,35,.18)'
+        ctx.strokeStyle = 'rgba(23,95,120,.18)'
         ctx.strokeRect(i * laneW, 0, laneW, h)
       }
-      ctx.fillStyle = '#0F0A04'
+      ctx.fillStyle = '#ffffff'
       ctx.fillRect(0, h - 86, w, 86)
-      ctx.fillStyle = '#F5EFE6'
+      ctx.fillStyle = '#14333d'
       ctx.font = '900 18px Cairo, sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText(`نظّفت ${s.cleaned}/10`, w / 2, h - 52)
@@ -431,19 +483,22 @@ function Stage2({
       })
       if (s.active) {
         const center = { x: w / 2, y: h * 0.58 }
-        ctx.fillStyle = 'rgba(15,10,4,.72)'
+        ctx.fillStyle = 'rgba(255,255,255,.86)'
         ctx.beginPath()
         ctx.roundRect(center.x - 90, center.y - 90, 180, 180, 22)
         ctx.fill()
+        ctx.strokeStyle = 'rgba(23,95,120,.28)'
+        ctx.lineWidth = 3
+        ctx.stroke()
         drawEmoji(ctx, dishDefs[s.active.type].emoji, center.x, center.y, 78)
         const need = dishDefs[s.active.type].scrubs
-        ctx.strokeStyle = s.active.type === 'glass' ? '#E5484D' : '#F5A623'
+        ctx.strokeStyle = s.active.type === 'glass' ? '#E5484D' : '#175f78'
         ctx.lineWidth = 10
         ctx.beginPath()
         ctx.arc(center.x, center.y, 86, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ((s.active.scrubs + s.scrubProgress) / need))
         ctx.stroke()
         if (s.active.type === 'glass') {
-          ctx.fillStyle = '#F5EFE6'
+          ctx.fillStyle = '#14333d'
           ctx.font = '700 15px Cairo, sans-serif'
           ctx.fillText('بهدوء على الكاسة', center.x, center.y + 112)
         }
@@ -755,7 +810,7 @@ function Stage3({
       const w = rect.width
       const h = rect.height
       ctx.clearRect(0, 0, w, h)
-      ctx.fillStyle = '#120B05'
+      ctx.fillStyle = '#eef8f6'
       ctx.fillRect(0, 0, w, h)
       for (let y = 0; y < 19; y += 1) {
         for (let x = 0; x < 15; x += 1) {
@@ -763,25 +818,25 @@ function Stage3({
           const py = offY + y * tile
           const cell = mazeRows[y][x]
           if (cell === 'W') {
-            ctx.fillStyle = '#050302'
-            ctx.shadowColor = 'rgba(245,166,35,.28)'
+            ctx.fillStyle = '#175f78'
+            ctx.shadowColor = 'rgba(23,95,120,.22)'
             ctx.shadowBlur = 7
             ctx.beginPath()
             ctx.roundRect(px + 2, py + 2, tile - 4, tile - 4, 7)
             ctx.fill()
             ctx.shadowBlur = 0
           } else {
-            ctx.fillStyle = '#211308'
+            ctx.fillStyle = '#fff8e7'
             ctx.fillRect(px, py, tile, tile)
           }
           if (cell === 'E') {
-            ctx.fillStyle = 'rgba(245,166,35,.28)'
+            ctx.fillStyle = 'rgba(245,166,35,.42)'
             ctx.fillRect(px, py, tile, tile)
             drawEmoji(ctx, '🚪', px + tile / 2, py + tile / 2, tile * 0.78)
           }
         }
       }
-      ctx.fillStyle = 'rgba(245,239,230,.72)'
+      ctx.fillStyle = 'rgba(20,51,61,.72)'
       ctx.font = `700 ${Math.max(11, tile * 0.32)}px Cairo, sans-serif`
       ctx.textAlign = 'center'
       ctx.fillText('غرفة البيبي', offX + 6.2 * tile, offY + 4.15 * tile)
@@ -796,7 +851,7 @@ function Stage3({
       drawEmoji(ctx, freeze ? '💙' : wife < 30 ? '👹' : '👸', offX + s.wifeGhost.x * tile + tile / 2, offY + s.wifeGhost.y * tile + tile / 2, tile * 0.72)
       drawEmoji(ctx, freeze ? '💙' : '👵', offX + s.mother.x * tile + tile / 2, offY + s.mother.y * tile + tile / 2, tile * 0.72)
       drawEmoji(ctx, now < s.invincibleUntil ? '🧔‍♂️' : '🧔', offX + s.player.x * tile + tile / 2, offY + s.player.y * tile + tile / 2, tile * 0.78)
-      ctx.fillStyle = '#F5EFE6'
+      ctx.fillStyle = '#14333d'
       ctx.font = '900 18px Cairo, sans-serif'
       ctx.fillText(`الوقت ${Math.ceil(timeLeft)}`, w / 2, h - 10)
       setHud({ stage: 3, hearts: s.hearts, wife, mood: s.hearts < 3 ? 'shake' : undefined })
