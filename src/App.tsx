@@ -202,23 +202,26 @@ function Stage1({
         y: h * 0.31 + Math.sin(elapsed * 2.3) * 15,
       }
       const mouth = { x: baby.x, y: baby.y + 30 }
-      const open = elapsed % 3.4 < 2.5
-      const closeEnough = dist(s.feeder, mouth) < 82
-      const safeZone = dist(s.feeder, mouth) < 118
+      const open = elapsed % 3 < 1.35
+      const closeEnough = dist(s.feeder, mouth) < 54
+      const safeZone = dist(s.feeder, mouth) < 86
 
-      if (closeEnough && now > s.stunUntil) {
+      if (open && closeEnough && now > s.stunUntil) {
         s.hold += dt
         if (s.hold > 0.48) {
           s.feeds += 1
           s.hold = 0
           setWife((value) => clamp(value + 8, 0, 100))
-          setToast(s.feeds >= 4 ? 'البيبي شبع وانفتح الطريق 🎉' : `رضعة ممتازة ${s.feeds}/4`)
-          if (s.feeds >= 4 && !s.done) {
+          setToast(s.feeds >= 5 ? 'البيبي شبع وانفتح الطريق 🎉' : `رضعة ممتازة ${s.feeds}/5`)
+          if (s.feeds >= 5 && !s.done) {
             s.done = true
             onWin(Math.max(0, Math.round(1000 - s.misses * 25 - elapsed * 3)))
             return
           }
         }
+      } else if (s.hold > 0 && !open) {
+        s.hold = 0
+        setToast('نطر فم البيبي يفتح 😮')
       } else if (s.hold > 0 && !safeZone) {
         s.hold = 0
         s.misses += 1
@@ -363,7 +366,7 @@ function Stage1({
 
       ctx.fillStyle = '#14333d'
       ctx.font = '900 22px Cairo, sans-serif'
-      ctx.fillText(`${s.feeds}/4`, w / 2, h - 24)
+      ctx.fillText(`${s.feeds}/5`, w / 2, h - 24)
       setHud({ stage: 1, hearts: s.hearts, wife, mood: s.hold > 0.25 ? 'jump' : undefined })
       frame = requestAnimationFrame(loop)
     }
@@ -416,6 +419,7 @@ type Dish = {
   speed: number
   kind: 'dish' | 'glass' | 'bottle' | 'mess' | 'gamepad' | 'trap' | 'glitch'
   spin: number
+  scrub: number
 }
 
 function Stage2({
@@ -466,7 +470,7 @@ function Stage2({
       s.last = now
       const elapsed = (now - s.start) / 1000
       const timeLeft = Math.max(0, 50 - elapsed)
-      if ((timeLeft <= 0 || s.cleaned >= 20) && !s.done) {
+      if ((timeLeft <= 0 || s.cleaned >= 14) && !s.done) {
         s.done = true
         onWin(Math.max(0, Math.round(s.cleaned * 95 + timeLeft * 12 - s.missed * 20 + s.score)))
         return
@@ -491,8 +495,8 @@ function Stage2({
                     : roll < 0.97
                       ? 'glitch'
                       : 'mess'
-        s.items.push({ id: s.nextId++, kind, x: rand(34, w - 34), y: -40, speed: rand(78, 130), spin: rand(0, Math.PI * 2) })
-        s.spawn = rand(0.38, 0.68)
+        s.items.push({ id: s.nextId++, kind, x: rand(34, w - 34), y: -40, speed: rand(45, 75), spin: rand(0, Math.PI * 2), scrub: 0 })
+        s.spawn = rand(0.6, 1)
       }
 
       s.items.forEach((item) => {
@@ -500,13 +504,18 @@ function Stage2({
         item.spin += dt * 4
       })
       s.items = s.items.filter((item) => {
-        if (dist(item, s.sponge) < (item.kind === 'dish' || item.kind === 'glass' || item.kind === 'bottle' ? 28 : 34)) {
+        const isCleanable = item.kind === 'dish' || item.kind === 'glass' || item.kind === 'bottle'
+        const hitDistance = dist(item, s.sponge)
+        if (hitDistance < (isCleanable ? 40 : 20)) {
           if (item.kind === 'mess' || item.kind === 'gamepad' || item.kind === 'trap' || item.kind === 'glitch') {
             s.hearts -= 1
+            item.scrub = 0
             setWife((value) => clamp(value - 8, 0, 100))
             setToast(item.kind === 'gamepad' ? 'جنجفة! لا تلمس الكنترول 🎮' : item.kind === 'glitch' ? 'قلتچ! هذا مو صحن 🕹️' : 'فخ! نقص قلب 😵')
             if (s.hearts <= 0) onFail('FAIL_2')
           } else {
+            item.scrub += dt
+            if (item.scrub < 0.25) return true
             s.cleaned += 1
             s.score += item.kind === 'glass' ? 140 : item.kind === 'bottle' ? 170 : 100
             setWife((value) => clamp(value + 2, 0, 100))
@@ -514,6 +523,7 @@ function Stage2({
           }
           return false
         }
+        item.scrub = 0
         if (item.y > h + 44) {
           if (item.kind === 'dish' || item.kind === 'glass' || item.kind === 'bottle') {
             s.missed += 1
@@ -541,7 +551,7 @@ function Stage2({
       ctx.fillStyle = '#14333d'
       ctx.font = '900 18px Cairo, sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText(`نظّفت ${s.cleaned}/20`, w / 2, h - 42)
+      ctx.fillText(`نظّفت ${s.cleaned}/14`, w / 2, h - 42)
       ctx.fillText(`الوقت ${Math.ceil(timeLeft)}`, w / 2, h - 16)
 
       s.items.forEach((item) => {
@@ -560,6 +570,13 @@ function Stage2({
                       ? '🕹️'
                       : '🕳️'
         drawEmoji(ctx, emoji, item.x, item.y, item.kind === 'dish' || item.kind === 'glass' || item.kind === 'bottle' ? 34 : 38)
+        if (item.scrub > 0) {
+          ctx.strokeStyle = '#30a46c'
+          ctx.lineWidth = 5
+          ctx.beginPath()
+          ctx.arc(item.x, item.y, 26, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp(item.scrub / 0.25, 0, 1))
+          ctx.stroke()
+        }
       })
       ctx.fillStyle = 'rgba(48,164,108,.16)'
       ctx.beginPath()
@@ -646,6 +663,7 @@ function Stage3({
     combo: 0,
     player: { x: 88, y: 380 },
     target: { x: 88, y: 380 },
+    finger: { x: 88, y: 460 },
     things: [] as RunnerThing[],
     done: false,
   })
@@ -766,6 +784,14 @@ function Stage3({
       ctx.arc(s.player.x, s.player.y, 42 * s.faceScale, 0, Math.PI * 2)
       ctx.fill()
       drawFace(ctx, photoRef.current, s.player.x, s.player.y, 28 * s.faceScale)
+      ctx.strokeStyle = 'rgba(23,95,120,.34)'
+      ctx.setLineDash([6, 7])
+      ctx.beginPath()
+      ctx.moveTo(s.player.x, s.player.y)
+      ctx.lineTo(s.player.x, s.player.y + 80)
+      ctx.stroke()
+      ctx.setLineDash([])
+      drawEmoji(ctx, '👇', s.player.x, s.player.y + 96, 22)
       setHud({ stage: 3, hearts: s.hearts, wife, mood: s.hearts < 3 ? 'shake' : undefined })
       frame = requestAnimationFrame(loop)
     }
@@ -777,9 +803,14 @@ function Stage3({
     const canvas = canvasRef.current
     if (!canvas) return
     const box = canvas.getBoundingClientRect()
-    state.current.target = {
+    const raw = {
       x: clamp(clientX - box.left, 44, box.width - 44),
       y: clamp(clientY - box.top, 78, box.height - 52),
+    }
+    state.current.finger = raw
+    state.current.target = {
+      x: raw.x,
+      y: clamp(raw.y - 80, 78, box.height - 52),
     }
   }
 
