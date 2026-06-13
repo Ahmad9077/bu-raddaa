@@ -203,18 +203,17 @@ function Stage1({
       }
       const mouth = { x: baby.x, y: baby.y + 30 }
       const open = elapsed % 3.4 < 2.5
-      const guidedNearBaby = s.target.y < h * 0.72 && Math.abs(s.target.x - baby.x) < w * 0.42
-      const closeEnough = dist(s.feeder, mouth) < 150 || guidedNearBaby
-      const safeZone = dist(s.feeder, mouth) < 185 || guidedNearBaby
+      const closeEnough = dist(s.feeder, mouth) < 82
+      const safeZone = dist(s.feeder, mouth) < 118
 
       if (closeEnough && now > s.stunUntil) {
         s.hold += dt
-        if (s.hold > 0.18) {
+        if (s.hold > 0.48) {
           s.feeds += 1
           s.hold = 0
           setWife((value) => clamp(value + 8, 0, 100))
-          setToast(s.feeds >= 2 ? 'البيبي شبع وانفتح الطريق 🎉' : `رضعة ممتازة ${s.feeds}/2`)
-          if (s.feeds >= 2 && !s.done) {
+          setToast(s.feeds >= 4 ? 'البيبي شبع وانفتح الطريق 🎉' : `رضعة ممتازة ${s.feeds}/4`)
+          if (s.feeds >= 4 && !s.done) {
             s.done = true
             onWin(Math.max(0, Math.round(1000 - s.misses * 25 - elapsed * 3)))
             return
@@ -225,7 +224,7 @@ function Stage1({
         s.misses += 1
         setWife((value) => clamp(value - 3, 0, 100))
         setToast('قرب شوي بس لا تغطي البيبي 😅')
-        if (s.misses % 7 === 0) {
+        if (s.misses % 5 === 0) {
           s.hearts -= 1
           if (s.hearts <= 0) {
             onFail('FAIL_1')
@@ -234,7 +233,7 @@ function Stage1({
         }
       }
 
-      if (!s.swatUntil && closeEnough && Math.random() < 0.002) {
+      if (!s.swatUntil && closeEnough && Math.random() < 0.003) {
         s.swatUntil = now + 650
         s.swatX = baby.x + (Math.random() > 0.5 ? -70 : 70)
       }
@@ -357,14 +356,14 @@ function Stage1({
         ctx.strokeStyle = '#175f78'
         ctx.lineWidth = 7
         ctx.beginPath()
-        ctx.arc(mouth.x, mouth.y, 56, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (s.hold / 0.18))
+        ctx.arc(mouth.x, mouth.y, 56, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (s.hold / 0.48))
         ctx.stroke()
       }
       if (s.swatUntil) drawEmoji(ctx, '✋', s.swatX, baby.y + 16, 38)
 
       ctx.fillStyle = '#14333d'
       ctx.font = '900 22px Cairo, sans-serif'
-      ctx.fillText(`${s.feeds}/2`, w / 2, h - 24)
+      ctx.fillText(`${s.feeds}/4`, w / 2, h - 24)
       setHud({ stage: 1, hearts: s.hearts, wife, mood: s.hold > 0.25 ? 'jump' : undefined })
       frame = requestAnimationFrame(loop)
     }
@@ -415,7 +414,7 @@ type Dish = {
   x: number
   y: number
   speed: number
-  kind: 'dish' | 'glass' | 'bottle' | 'mess' | 'gamepad' | 'bomb' | 'trap'
+  kind: 'dish' | 'glass' | 'bottle' | 'mess' | 'gamepad' | 'trap' | 'glitch'
   spin: number
 }
 
@@ -466,8 +465,8 @@ function Stage2({
       const dt = Math.min((now - (s.last || now)) / 1000, 0.04)
       s.last = now
       const elapsed = (now - s.start) / 1000
-      const timeLeft = Math.max(0, 45 - elapsed)
-      if ((timeLeft <= 0 || s.cleaned >= 22) && !s.done) {
+      const timeLeft = Math.max(0, 50 - elapsed)
+      if ((timeLeft <= 0 || s.cleaned >= 20) && !s.done) {
         s.done = true
         onWin(Math.max(0, Math.round(s.cleaned * 95 + timeLeft * 12 - s.missed * 20 + s.score)))
         return
@@ -479,21 +478,21 @@ function Stage2({
       if (s.spawn <= 0) {
         const roll = Math.random()
         const kind: Dish['kind'] =
-          roll < 0.38
+          roll < 0.34
             ? 'dish'
-            : roll < 0.56
+            : roll < 0.51
               ? 'glass'
-              : roll < 0.72
+              : roll < 0.66
                 ? 'bottle'
-                : roll < 0.82
+                : roll < 0.8
                   ? 'gamepad'
                   : roll < 0.91
-                    ? 'bomb'
+                    ? 'trap'
                     : roll < 0.97
-                      ? 'trap'
+                      ? 'glitch'
                       : 'mess'
-        s.items.push({ id: s.nextId++, kind, x: rand(34, w - 34), y: -40, speed: rand(95, 170), spin: rand(0, Math.PI * 2) })
-        s.spawn = rand(0.22, 0.46)
+        s.items.push({ id: s.nextId++, kind, x: rand(34, w - 34), y: -40, speed: rand(78, 130), spin: rand(0, Math.PI * 2) })
+        s.spawn = rand(0.38, 0.68)
       }
 
       s.items.forEach((item) => {
@@ -501,11 +500,11 @@ function Stage2({
         item.spin += dt * 4
       })
       s.items = s.items.filter((item) => {
-        if (dist(item, s.sponge) < (item.kind === 'dish' || item.kind === 'glass' || item.kind === 'bottle' ? 34 : 42)) {
-          if (item.kind === 'mess' || item.kind === 'gamepad' || item.kind === 'bomb' || item.kind === 'trap') {
+        if (dist(item, s.sponge) < (item.kind === 'dish' || item.kind === 'glass' || item.kind === 'bottle' ? 28 : 34)) {
+          if (item.kind === 'mess' || item.kind === 'gamepad' || item.kind === 'trap' || item.kind === 'glitch') {
             s.hearts -= 1
             setWife((value) => clamp(value - 8, 0, 100))
-            setToast(item.kind === 'gamepad' ? 'جنجفة! لا تلمس الكنترول 🎮' : item.kind === 'bomb' ? 'بوم! فخ فيديو قيمز 💣' : 'فخ! نقص قلب 😵')
+            setToast(item.kind === 'gamepad' ? 'جنجفة! لا تلمس الكنترول 🎮' : item.kind === 'glitch' ? 'قلتچ! هذا مو صحن 🕹️' : 'فخ! نقص قلب 😵')
             if (s.hearts <= 0) onFail('FAIL_2')
           } else {
             s.cleaned += 1
@@ -542,7 +541,7 @@ function Stage2({
       ctx.fillStyle = '#14333d'
       ctx.font = '900 18px Cairo, sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText(`نظّفت ${s.cleaned}/22`, w / 2, h - 42)
+      ctx.fillText(`نظّفت ${s.cleaned}/20`, w / 2, h - 42)
       ctx.fillText(`الوقت ${Math.ceil(timeLeft)}`, w / 2, h - 16)
 
       s.items.forEach((item) => {
@@ -555,18 +554,18 @@ function Stage2({
                 ? '🍼'
                 : item.kind === 'gamepad'
                   ? '🎮'
-                  : item.kind === 'bomb'
-                    ? '💣'
-                    : item.kind === 'trap'
-                      ? '🪤'
+                  : item.kind === 'trap'
+                    ? '🪤'
+                    : item.kind === 'glitch'
+                      ? '🕹️'
                       : '🕳️'
-        drawEmoji(ctx, emoji, item.x, item.y, item.kind === 'dish' || item.kind === 'glass' || item.kind === 'bottle' ? 38 : 42)
+        drawEmoji(ctx, emoji, item.x, item.y, item.kind === 'dish' || item.kind === 'glass' || item.kind === 'bottle' ? 34 : 38)
       })
       ctx.fillStyle = 'rgba(48,164,108,.16)'
       ctx.beginPath()
-      ctx.arc(s.sponge.x, s.sponge.y, 36, 0, Math.PI * 2)
+      ctx.arc(s.sponge.x, s.sponge.y, 30, 0, Math.PI * 2)
       ctx.fill()
-      drawEmoji(ctx, '🧽', s.sponge.x, s.sponge.y, 42)
+      drawEmoji(ctx, '🧽', s.sponge.x, s.sponge.y, 36)
       ctx.strokeStyle = 'rgba(23,95,120,.34)'
       ctx.setLineDash([6, 7])
       ctx.beginPath()
