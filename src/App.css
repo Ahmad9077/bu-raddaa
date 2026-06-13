@@ -245,8 +245,8 @@ input:focus-visible {
 }
 
 .snake-canvas {
-  height: min(50svh, 560px);
-  min-height: 360px;
+  height: min(62svh, 720px);
+  min-height: 470px;
 }
 
 .snake-pad {
@@ -255,6 +255,7 @@ input:focus-visible {
   justify-items: center;
   gap: 8px;
   margin: 10px auto 18px;
+  direction: ltr;
 }
 
 .snake-pad > div {
@@ -503,8 +504,8 @@ input {
   }
 
   .snake-canvas {
-    height: 45svh;
-    min-height: 330px;
+    height: 55svh;
+    min-height: 410px;
   }
 
   .stage-title {

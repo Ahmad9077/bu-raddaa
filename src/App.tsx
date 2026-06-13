@@ -141,7 +141,7 @@ function Stage1({
     paddleX: 190,
     targetX: 190,
     fingerX: 190,
-    bottle: { x: 190, y: 260, vx: 90, vy: 230, spin: 0 },
+    bottle: { x: 190, y: 260, vx: 130, vy: 310, spin: 0 },
     pauseUntil: 0,
     done: false,
   })
@@ -174,8 +174,8 @@ function Stage1({
       const resetBottle = (direction: 1 | -1) => {
         bottle.x = direction < 0 ? s.paddleX : w * 0.5
         bottle.y = direction < 0 ? paddleY - 68 : h * 0.42
-        bottle.vx = rand(-90, 90)
-        bottle.vy = direction * rand(210, 255)
+        bottle.vx = rand(-140, 140)
+        bottle.vy = direction * rand(295, 345)
         bottle.spin = 0
         s.pauseUntil = now + 280
       }
@@ -197,8 +197,8 @@ function Stage1({
         if (bottle.vy > 0 && bottle.y > paddleY - 25 && bottle.y < paddleY + 14 && Math.abs(bottle.x - s.paddleX) < paddleW / 2 + 18) {
           const offset = (bottle.x - s.paddleX) / (paddleW / 2)
           bottle.y = paddleY - 27
-          bottle.vy = -Math.min(365, Math.abs(bottle.vy) * 1.04 + 18)
-          bottle.vx = clamp(bottle.vx + offset * 170, -260, 260)
+          bottle.vy = -Math.min(430, Math.abs(bottle.vy) * 1.035 + 16)
+          bottle.vx = clamp(bottle.vx + offset * 185, -300, 300)
           s.hits += 1
           setToast(s.hits % 3 === 0 ? 'ضربة حلوة! وجّهها لفم البيبي' : 'ردّ الرضاعة!')
         }
@@ -258,7 +258,6 @@ function Stage1({
       ctx.arc(baby.x, baby.y + 11, Math.min(40, w * 0.1), 0, Math.PI * 2)
       ctx.fill()
       drawEmoji(ctx, '👶', baby.x, baby.y, Math.min(48, w * 0.12))
-      drawEmoji(ctx, '😮', mouth.x, mouth.y, 18)
 
       ctx.save()
       ctx.shadowColor = 'rgba(23,51,61,.18)'
@@ -734,8 +733,8 @@ function Stage3({
     touchStart: null as null | SnakeCell,
     done: false,
   })
-  const cols = 18
-  const rows = 22
+  const cols = 16
+  const rows = 18
   const winTarget = 25
 
   const setDirection = useCallback((direction: SnakeDirection) => {
@@ -855,7 +854,7 @@ function Stage3({
       ctx.clearRect(0, 0, w, h)
       ctx.fillStyle = '#f7fbf7'
       ctx.fillRect(0, 0, w, h)
-      const cell = Math.floor(Math.min(w / (cols + 1.2), (h - 28) / (rows + 1.2)))
+      const cell = Math.floor(Math.min(w / (cols + 0.9), (h - 28) / (rows + 0.9)))
       const boardW = cell * cols
       const boardH = cell * rows
       const ox = (w - boardW) / 2
@@ -874,7 +873,7 @@ function Stage3({
         }
       }
 
-      drawEmoji(ctx, s.target.face, ox + s.target.x * cell + cell / 2, oy + s.target.y * cell + cell / 2, cell * 0.95)
+      drawEmoji(ctx, s.target.face, ox + s.target.x * cell + cell / 2, oy + s.target.y * cell + cell / 2, cell * 1.12)
       s.snake.forEach((part, index) => {
         const x = ox + part.x * cell
         const y = oy + part.y * cell
@@ -882,7 +881,7 @@ function Stage3({
         ctx.beginPath()
         ctx.roundRect(x + 2, y + 2, cell - 4, cell - 4, Math.max(5, cell * 0.28))
         ctx.fill()
-        if (index === 0) drawEmoji(ctx, '👀', x + cell / 2, y + cell / 2, cell * 0.54)
+        if (index === 0) drawEmoji(ctx, '👀', x + cell / 2, y + cell / 2, cell * 0.62)
       })
 
       ctx.fillStyle = '#14333d'
