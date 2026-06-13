@@ -412,14 +412,62 @@ function Stage1({
   )
 }
 
-type Dish = {
+type PlatformBlock = { x: number; yOff: number; w: number; h: number; kind: 'ground' | 'brick' | 'pipe' }
+type PlatformCollectible = { id: number; x: number; yOff: number; kind: 'coin' | 'dish' | 'heart'; taken: boolean }
+type PlatformFoe = {
   id: number
   x: number
-  y: number
-  speed: number
-  kind: 'dish' | 'glass' | 'bottle' | 'mess' | 'gamepad' | 'trap' | 'glitch'
-  spin: number
-  scrub: number
+  yOff: number
+  w: number
+  h: number
+  vx: number
+  minX: number
+  maxX: number
+  kind: 'gamepad' | 'glitch'
+  alive: boolean
+}
+
+function rectsOverlap(a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+}
+
+function createPlatformLevel() {
+  return {
+    worldWidth: 2400,
+    platforms: [
+      { x: 0, yOff: 0, w: 370, h: 34, kind: 'ground' },
+      { x: 455, yOff: 0, w: 330, h: 34, kind: 'ground' },
+      { x: 855, yOff: 0, w: 420, h: 34, kind: 'ground' },
+      { x: 1375, yOff: 0, w: 350, h: 34, kind: 'ground' },
+      { x: 1800, yOff: 0, w: 600, h: 34, kind: 'ground' },
+      { x: 210, yOff: 108, w: 130, h: 22, kind: 'brick' },
+      { x: 575, yOff: 150, w: 130, h: 22, kind: 'brick' },
+      { x: 970, yOff: 112, w: 170, h: 22, kind: 'brick' },
+      { x: 1475, yOff: 154, w: 145, h: 22, kind: 'brick' },
+      { x: 1945, yOff: 124, w: 135, h: 22, kind: 'brick' },
+      { x: 1245, yOff: 58, w: 70, h: 58, kind: 'pipe' },
+    ] as PlatformBlock[],
+    items: [
+      { id: 1, x: 252, yOff: 160, kind: 'coin', taken: false },
+      { id: 2, x: 310, yOff: 160, kind: 'dish', taken: false },
+      { id: 3, x: 612, yOff: 205, kind: 'coin', taken: false },
+      { id: 4, x: 670, yOff: 205, kind: 'dish', taken: false },
+      { id: 5, x: 1015, yOff: 165, kind: 'dish', taken: false },
+      { id: 6, x: 1090, yOff: 165, kind: 'coin', taken: false },
+      { id: 7, x: 1280, yOff: 110, kind: 'heart', taken: false },
+      { id: 8, x: 1515, yOff: 210, kind: 'coin', taken: false },
+      { id: 9, x: 1570, yOff: 210, kind: 'dish', taken: false },
+      { id: 10, x: 1990, yOff: 180, kind: 'coin', taken: false },
+      { id: 11, x: 2050, yOff: 180, kind: 'dish', taken: false },
+      { id: 12, x: 2250, yOff: 78, kind: 'coin', taken: false },
+    ] as PlatformCollectible[],
+    foes: [
+      { id: 1, x: 560, yOff: 34, w: 36, h: 34, vx: 45, minX: 500, maxX: 720, kind: 'gamepad', alive: true },
+      { id: 2, x: 1040, yOff: 34, w: 36, h: 34, vx: -50, minX: 900, maxX: 1215, kind: 'glitch', alive: true },
+      { id: 3, x: 1530, yOff: 34, w: 36, h: 34, vx: 48, minX: 1415, maxX: 1680, kind: 'gamepad', alive: true },
+      { id: 4, x: 2050, yOff: 34, w: 36, h: 34, vx: -55, minX: 1850, maxX: 2290, kind: 'glitch', alive: true },
+    ] as PlatformFoe[],
+  }
 }
 
 function Stage2({
@@ -436,21 +484,31 @@ function Stage2({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   useCanvas(canvasRef)
   const [hud, setHud] = useState<HudState>({ stage: 2, hearts: 3, wife })
-  const [toast, setToast] = useState('اسحب تحت الممسحة، نظّف الصحون وتفادى فخاخ الفيديو قيمز')
+  const [toast, setToast] = useState('اضغط للقفز، اجمع الصحون والعملات ووصل العلم')
   const state = useRef({
     start: 0,
     last: 0,
-    spawn: 0,
-    nextId: 1,
     hearts: 3,
-    cleaned: 0,
-    missed: 0,
+    collected: 0,
     score: 0,
-    sponge: { x: 190, y: 420 },
-    target: { x: 190, y: 420 },
-    items: [] as Dish[],
+    cameraX: 0,
+    jumpQueued: false,
+    invulnUntil: 0,
+    player: { x: 74, y: 220, w: 36, h: 46, vy: 0, onGround: false, prevY: 220 },
+    level: null as null | ReturnType<typeof createPlatformLevel>,
     done: false,
   })
+
+  useEffect(() => {
+    const jump = (event: KeyboardEvent) => {
+      if (event.key === ' ' || event.key === 'ArrowUp' || event.key.toLowerCase() === 'w') {
+        event.preventDefault()
+        state.current.jumpQueued = true
+      }
+    }
+    window.addEventListener('keydown', jump)
+    return () => window.removeEventListener('keydown', jump)
+  }, [])
 
   useEffect(() => {
     let frame = 0
@@ -465,170 +523,208 @@ function Stage2({
       const w = box.width
       const h = box.height
       const s = state.current
+      if (!s.level) s.level = createPlatformLevel()
+      const level = s.level
+      const floorY = h - 78
       if (!s.start) s.start = now
       const dt = Math.min((now - (s.last || now)) / 1000, 0.04)
       s.last = now
       const elapsed = (now - s.start) / 1000
-      const timeLeft = Math.max(0, 50 - elapsed)
-      if ((timeLeft <= 0 || s.cleaned >= 14) && !s.done) {
+
+      const player = s.player
+      let failed = false
+      const platformRect = (block: PlatformBlock) => ({ x: block.x, y: floorY - block.yOff, w: block.w, h: block.h })
+      const hurt = (message: string) => {
+        if (now < s.invulnUntil || failed) return
+        s.hearts -= 1
+        setWife((value) => clamp(value - 7, 0, 100))
+        setToast(message)
+        if (s.hearts <= 0) {
+          failed = true
+          onFail('FAIL_2')
+          return
+        }
+        s.invulnUntil = now + 1200
+        player.x = Math.max(74, player.x - 170)
+        player.y = floorY - player.h
+        player.vy = 0
+        player.onGround = true
+      }
+
+      if (s.jumpQueued && player.onGround) {
+        player.vy = -560
+        player.onGround = false
+        setToast('قفزة!')
+      }
+      s.jumpQueued = false
+
+      player.prevY = player.y
+      player.x = clamp(player.x + 132 * dt, 40, level.worldWidth - 90)
+      player.vy += 1320 * dt
+      player.y += player.vy * dt
+      player.onGround = false
+      for (const block of level.platforms) {
+        const rect = platformRect(block)
+        const wasAbove = player.prevY + player.h <= rect.y + 5
+        const isFallingThrough = player.y + player.h >= rect.y && player.vy >= 0
+        if (wasAbove && isFallingThrough && player.x + player.w > rect.x + 6 && player.x < rect.x + rect.w - 6) {
+          player.y = rect.y - player.h
+          player.vy = 0
+          player.onGround = true
+        }
+      }
+      if (player.y > h + 90) hurt('طحت بالحفرة! اقفز بدري')
+      if (failed) return
+
+      const playerRect = { x: player.x, y: player.y, w: player.w, h: player.h }
+      for (const item of level.items) {
+        if (item.taken) continue
+        const itemRect = { x: item.x - 15, y: floorY - item.yOff - 15, w: 30, h: 30 }
+        if (rectsOverlap(playerRect, itemRect)) {
+          item.taken = true
+          s.collected += 1
+          s.score += item.kind === 'dish' ? 160 : item.kind === 'heart' ? 80 : 100
+          if (item.kind === 'heart') {
+            s.hearts = Math.min(3, s.hearts + 1)
+            setToast('قلب إضافي ❤️')
+          } else {
+            setWife((value) => clamp(value + 2, 0, 100))
+            setToast(item.kind === 'dish' ? 'صحن ذهبي!' : 'عملة!')
+          }
+        }
+      }
+
+      for (const foe of level.foes) {
+        if (!foe.alive) continue
+        foe.x += foe.vx * dt
+        if (foe.x < foe.minX || foe.x > foe.maxX) {
+          foe.vx *= -1
+          foe.x = clamp(foe.x, foe.minX, foe.maxX)
+        }
+        const foeRect = { x: foe.x, y: floorY - foe.yOff, w: foe.w, h: foe.h }
+        if (rectsOverlap(playerRect, foeRect)) {
+          if (player.vy > 0 && player.prevY + player.h <= foeRect.y + 12) {
+            foe.alive = false
+            player.vy = -360
+            player.onGround = false
+            s.score += 180
+            setToast('دعست الوحش!')
+          } else {
+            hurt(foe.kind === 'gamepad' ? 'الكنترول لمس بو رضّاعة 🎮' : 'القلتچ صادك 🕹️')
+          }
+        }
+      }
+      if (failed) return
+
+      if (player.x >= level.worldWidth - 120 && !s.done) {
         s.done = true
-        onWin(Math.max(0, Math.round(s.cleaned * 95 + timeLeft * 12 - s.missed * 20 + s.score)))
+        onWin(Math.max(0, Math.round(1100 + s.score + s.collected * 90 + s.hearts * 160 - elapsed * 8)))
         return
       }
 
-      s.sponge.x += (s.target.x - s.sponge.x) * (1 - Math.pow(0.002, dt))
-      s.sponge.y += (s.target.y - s.sponge.y) * (1 - Math.pow(0.002, dt))
-      s.spawn -= dt
-      if (s.spawn <= 0) {
-        const roll = Math.random()
-        const kind: Dish['kind'] =
-          roll < 0.34
-            ? 'dish'
-            : roll < 0.51
-              ? 'glass'
-              : roll < 0.66
-                ? 'bottle'
-                : roll < 0.8
-                  ? 'gamepad'
-                  : roll < 0.91
-                    ? 'trap'
-                    : roll < 0.97
-                      ? 'glitch'
-                      : 'mess'
-        s.items.push({ id: s.nextId++, kind, x: rand(34, w - 34), y: -40, speed: rand(45, 75), spin: rand(0, Math.PI * 2), scrub: 0 })
-        s.spawn = rand(0.6, 1)
-      }
-
-      s.items.forEach((item) => {
-        item.y += item.speed * dt
-        item.spin += dt * 4
-      })
-      s.items = s.items.filter((item) => {
-        const isCleanable = item.kind === 'dish' || item.kind === 'glass' || item.kind === 'bottle'
-        const hitDistance = dist(item, s.sponge)
-        if (hitDistance < (isCleanable ? 40 : 20)) {
-          if (item.kind === 'mess' || item.kind === 'gamepad' || item.kind === 'trap' || item.kind === 'glitch') {
-            s.hearts -= 1
-            item.scrub = 0
-            setWife((value) => clamp(value - 8, 0, 100))
-            setToast(item.kind === 'gamepad' ? 'جنجفة! لا تلمس الكنترول 🎮' : item.kind === 'glitch' ? 'قلتچ! هذا مو صحن 🕹️' : 'فخ! نقص قلب 😵')
-            if (s.hearts <= 0) onFail('FAIL_2')
-          } else {
-            item.scrub += dt
-            if (item.scrub < 0.25) return true
-            s.cleaned += 1
-            s.score += item.kind === 'glass' ? 140 : item.kind === 'bottle' ? 170 : 100
-            setWife((value) => clamp(value + 2, 0, 100))
-            setToast(s.cleaned % 5 === 0 ? 'المطبخ قام يلمع ✨' : 'تنظيف سريع!')
-          }
-          return false
-        }
-        item.scrub = 0
-        if (item.y > h + 44) {
-          if (item.kind === 'dish' || item.kind === 'glass' || item.kind === 'bottle') {
-            s.missed += 1
-            if (s.missed % 4 === 0) {
-              s.hearts -= 1
-              setWife((value) => clamp(value - 6, 0, 100))
-              setToast('تراكمت الصحون! قلب راح')
-              if (s.hearts <= 0) onFail('FAIL_2')
-            }
-          }
-          return false
-        }
-        return true
-      })
+      s.cameraX = clamp(player.x - w * 0.34, 0, Math.max(0, level.worldWidth - w))
+      const cam = s.cameraX
 
       ctx.clearRect(0, 0, w, h)
-      ctx.fillStyle = '#fffaf0'
+      const sky = ctx.createLinearGradient(0, 0, 0, h)
+      sky.addColorStop(0, '#bdeeff')
+      sky.addColorStop(0.62, '#f7fbf7')
+      sky.addColorStop(1, '#fff6d8')
+      ctx.fillStyle = sky
       ctx.fillRect(0, 0, w, h)
-      for (let x = 0; x < w; x += 48) {
-        ctx.fillStyle = x % 96 ? 'rgba(23,95,120,.08)' : 'rgba(245,166,35,.12)'
-        ctx.fillRect(x, 0, 24, h)
+      ctx.fillStyle = 'rgba(255,255,255,.9)'
+      for (let i = 0; i < 8; i += 1) {
+        const cloudX = ((i * 310 - cam * 0.35) % (w + 180)) - 90
+        const cloudY = 44 + (i % 3) * 52
+        ctx.beginPath()
+        ctx.arc(cloudX, cloudY, 22, 0, Math.PI * 2)
+        ctx.arc(cloudX + 25, cloudY - 7, 27, 0, Math.PI * 2)
+        ctx.arc(cloudX + 56, cloudY, 20, 0, Math.PI * 2)
+        ctx.fill()
       }
-      ctx.fillStyle = '#ffffff'
-      ctx.fillRect(0, h - 74, w, 74)
+
+      level.platforms.forEach((block) => {
+        const rect = platformRect(block)
+        const x = rect.x - cam
+        if (x > w + 80 || x + rect.w < -80) return
+        ctx.fillStyle = block.kind === 'pipe' ? '#30a46c' : block.kind === 'brick' ? '#c66a2b' : '#8c5b28'
+        ctx.fillRect(x, rect.y, rect.w, rect.h)
+        ctx.fillStyle = block.kind === 'pipe' ? '#82d69f' : '#f5a623'
+        for (let bx = x + 4; bx < x + rect.w - 6; bx += 26) ctx.fillRect(bx, rect.y + 5, 16, 5)
+        if (block.kind === 'ground') {
+          ctx.fillStyle = '#30a46c'
+          ctx.fillRect(x, rect.y - 8, rect.w, 8)
+        }
+      })
+
+      const flagX = level.worldWidth - 96 - cam
+      ctx.fillStyle = '#175f78'
+      ctx.fillRect(flagX, floorY - 178, 7, 178)
+      ctx.fillStyle = '#e5484d'
+      ctx.beginPath()
+      ctx.moveTo(flagX + 7, floorY - 172)
+      ctx.lineTo(flagX + 88, floorY - 146)
+      ctx.lineTo(flagX + 7, floorY - 120)
+      ctx.closePath()
+      ctx.fill()
+
       ctx.fillStyle = '#14333d'
       ctx.font = '900 18px Cairo, sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText(`نظّفت ${s.cleaned}/14`, w / 2, h - 42)
-      ctx.fillText(`الوقت ${Math.ceil(timeLeft)}`, w / 2, h - 16)
+      ctx.fillText(`كنوز ${s.collected}/12`, w / 2, 30)
+      ctx.fillText(`المسافة ${Math.round((player.x / level.worldWidth) * 100)}%`, w / 2, 56)
 
-      s.items.forEach((item) => {
-        const emoji =
-          item.kind === 'dish'
-            ? '🍽️'
-            : item.kind === 'glass'
-              ? '🥛'
-              : item.kind === 'bottle'
-                ? '🍼'
-                : item.kind === 'gamepad'
-                  ? '🎮'
-                  : item.kind === 'trap'
-                    ? '🪤'
-                    : item.kind === 'glitch'
-                      ? '🕹️'
-                      : '🕳️'
-        drawEmoji(ctx, emoji, item.x, item.y, item.kind === 'dish' || item.kind === 'glass' || item.kind === 'bottle' ? 34 : 38)
-        if (item.scrub > 0) {
-          ctx.strokeStyle = '#30a46c'
-          ctx.lineWidth = 5
-          ctx.beginPath()
-          ctx.arc(item.x, item.y, 26, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp(item.scrub / 0.25, 0, 1))
-          ctx.stroke()
-        }
+      level.items.forEach((item) => {
+        if (item.taken) return
+        drawEmoji(ctx, item.kind === 'dish' ? '🍽️' : item.kind === 'heart' ? '❤️' : '🪙', item.x - cam, floorY - item.yOff, item.kind === 'heart' ? 28 : 30)
       })
-      ctx.fillStyle = 'rgba(48,164,108,.16)'
+
+      level.foes.forEach((foe) => {
+        if (!foe.alive) return
+        drawEmoji(ctx, foe.kind === 'gamepad' ? '🎮' : '🕹️', foe.x + foe.w / 2 - cam, floorY - foe.yOff + foe.h / 2, 36)
+      })
+
+      ctx.save()
+      if (now < s.invulnUntil && Math.floor(now / 120) % 2 === 0) ctx.globalAlpha = 0.42
+      ctx.fillStyle = '#fff7d8'
+      ctx.strokeStyle = '#175f78'
+      ctx.lineWidth = 4
       ctx.beginPath()
-      ctx.arc(s.sponge.x, s.sponge.y, 30, 0, Math.PI * 2)
+      ctx.roundRect(player.x - cam, player.y, player.w, player.h, 10)
       ctx.fill()
-      drawEmoji(ctx, '🧽', s.sponge.x, s.sponge.y, 36)
-      ctx.strokeStyle = 'rgba(23,95,120,.34)'
-      ctx.setLineDash([6, 7])
-      ctx.beginPath()
-      ctx.moveTo(s.sponge.x, s.sponge.y)
-      ctx.lineTo(s.sponge.x, s.sponge.y + 74)
       ctx.stroke()
-      ctx.setLineDash([])
-      setHud({ stage: 2, hearts: s.hearts, wife, mood: s.cleaned % 6 === 0 && s.cleaned > 0 ? 'jump' : undefined })
+      drawEmoji(ctx, '🧔', player.x + player.w / 2 - cam, player.y + 22, 34)
+      ctx.restore()
+
+      ctx.fillStyle = 'rgba(23,95,120,.14)'
+      ctx.fillRect(0, h - 42, w, 42)
+      ctx.fillStyle = '#175f78'
+      ctx.font = '900 16px Cairo, sans-serif'
+      ctx.fillText('اضغط للقفز', w / 2, h - 17)
+      setHud({ stage: 2, hearts: s.hearts, wife, mood: player.onGround ? undefined : 'jump' })
       frame = requestAnimationFrame(loop)
     }
     frame = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(frame)
   }, [onFail, onWin, setWife, wife])
 
-  const move = (clientX: number, clientY: number) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const box = canvas.getBoundingClientRect()
-    state.current.target = {
-      x: clamp(clientX - box.left, 34, box.width - 34),
-      y: clamp(clientY - box.top - 74, 80, box.height - 70),
-    }
+  const jump = () => {
+    state.current.jumpQueued = true
   }
 
   return (
-    <StageShell hud={hud} title="نظّف بسرعة 🧽" toast={toast}>
+    <StageShell hud={hud} title="مطبخ المنصات 🏁" toast={toast}>
       <canvas
         ref={canvasRef}
         className="stage-canvas"
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId)
-          move(event.clientX, event.clientY)
+          jump()
         }}
-        onPointerMove={(event) => move(event.clientX, event.clientY)}
-        onMouseDown={(event) => move(event.clientX, event.clientY)}
-        onMouseMove={(event) => {
-          if (event.buttons) move(event.clientX, event.clientY)
-        }}
+        onMouseDown={jump}
         onTouchStart={(event) => {
-          const touch = event.touches[0]
-          if (touch) move(touch.clientX, touch.clientY)
-        }}
-        onTouchMove={(event) => {
           event.preventDefault()
-          const touch = event.touches[0]
-          if (touch) move(touch.clientX, touch.clientY)
+          jump()
         }}
       />
     </StageShell>
@@ -1053,7 +1149,7 @@ function App() {
           <h1>ثلاث ألعاب أسرع وأوضح</h1>
           <ul className="howto-list">
             <li>حرّك الصورة بسلاسة وخلي الهدف عند فم البيبي 👶</li>
-            <li>اسحب تحت الممسحة ونظّف الصحون وتفادى فخاخ الفيديو قيمز 🧽</li>
+            <li>اضغط للقفز في مرحلة المنصات، اجمع الكنوز ووصل العلم 🏁</li>
             <li>اسحب الوجه واهرب من الزوجة والهمبرجر للديوانية 🏃</li>
           </ul>
           <button type="button" onClick={() => setScreen('stage1')}>كمّل</button>
