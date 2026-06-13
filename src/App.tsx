@@ -14,10 +14,11 @@ const SNAKE_HEAD_SRC = `${import.meta.env.BASE_URL}snake-head.jpg`
 const SNAKE_TARGET_SRCS = Array.from({ length: 7 }, (_, index) => `${import.meta.env.BASE_URL}snake-target-${index + 1}.jpg`)
 const stageLabel = ['المرحلة ١ من ٣', 'المرحلة ٢ من ٣', 'المرحلة ٣ من ٣']
 const failText: Record<FailKind, string> = {
-  FAIL_1: 'البيبي قال: لا تحاول مرة ثانية بهالطريقة 😭',
-  FAIL_2: 'الزوجة والطفل وقفوا طريقك 😱',
-  FAIL_3: 'الثعبان خبط وانتهت الجولة 🐍',
+  FAIL_1: 'أعتذر عن الحضور',
+  FAIL_2: 'أعتذر عن الحضور',
+  FAIL_3: 'أعتذر عن الحضور',
 }
+const snakeBoosts = ['شباب نطروني', 'يايكم بالطريج', 'حسبوني عالعشى', 'اقدر امركم متأخر ؟']
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
@@ -100,6 +101,62 @@ function useNoLongPressSelection() {
   }, [])
 }
 
+function useStage2ActionAudio(active: boolean) {
+  const audioRef = useRef<{
+    context: AudioContext
+    gain: GainNode
+    timer: number
+    step: number
+  } | null>(null)
+
+  const start = useCallback(() => {
+    if (!active || audioRef.current) return
+    const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!AudioContextCtor) return
+    const context = new AudioContextCtor()
+    const gain = context.createGain()
+    gain.gain.value = 0.035
+    gain.connect(context.destination)
+    const pattern = [196, 196, 233, 196, 262, 196, 233, 196]
+    const playTick = () => {
+      const now = context.currentTime
+      const osc = context.createOscillator()
+      const tickGain = context.createGain()
+      const step = audioRef.current?.step ?? 0
+      osc.type = step % 4 === 0 ? 'triangle' : 'square'
+      osc.frequency.value = pattern[step]
+      tickGain.gain.setValueAtTime(0.0001, now)
+      tickGain.gain.exponentialRampToValueAtTime(0.11, now + 0.012)
+      tickGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09)
+      osc.connect(tickGain).connect(gain)
+      osc.start(now)
+      osc.stop(now + 0.1)
+      if (audioRef.current) audioRef.current.step = (audioRef.current.step + 1) % pattern.length
+    }
+    audioRef.current = {
+      context,
+      gain,
+      timer: window.setInterval(playTick, 190),
+      step: 0,
+    }
+    void context.resume()
+    playTick()
+  }, [active])
+
+  useEffect(() => {
+    if (!active) return undefined
+    const stop = () => {
+      if (!audioRef.current) return
+      window.clearInterval(audioRef.current.timer)
+      void audioRef.current.context.close()
+      audioRef.current = null
+    }
+    return stop
+  }, [active])
+
+  return start
+}
+
 function Hud({ hud }: { hud: HudState }) {
   return (
     <header className="hud">
@@ -169,7 +226,7 @@ function Stage1({
     wifeRef.current = wife
   }, [wife])
   const [hud, setHud] = useState<HudState>({ stage: 1, hearts: 3, wife })
-  const [toast, setToast] = useState('حرّك المضرب واضرب الرضاعة لفم البيبي')
+  const [toast, setToast] = useState('حرّك المضرب واضرب الرضاعة لفم سليمان')
   const state = useRef({
     start: 0,
     last: 0,
@@ -239,14 +296,14 @@ function Stage1({
           bottle.vy = -Math.min(430, Math.abs(bottle.vy) * 1.035 + 16)
           bottle.vx = clamp(bottle.vx + offset * 185, -300, 300)
           s.hits += 1
-          setToast(s.hits % 3 === 0 ? 'ضربة حلوة! وجّهها لفم البيبي' : 'ردّ الرضاعة!')
+          setToast(s.hits % 3 === 0 ? 'ضربة حلوة! وجّهها لفم سليمان' : 'ردّ الرضاعة!')
         }
 
         if (bottle.vy < 0 && bottle.y < mouth.y + 18) {
           if (Math.abs(bottle.x - mouth.x) < 38) {
           s.feeds += 1
           setWife((value) => clamp(value + 8, 0, 100))
-          setToast(s.feeds >= 5 ? 'البيبي شبع وانفتح الطريق 🎉' : `رضعة ممتازة ${s.feeds}/5`)
+          setToast(s.feeds >= 5 ? 'سليمان شبع وانفتح الطريق 🎉' : `رضعة ممتازة ${s.feeds}/5`)
           if (s.feeds >= 5 && !s.done) {
             s.done = true
               onWin(Math.max(0, Math.round(1200 + s.hits * 35 - s.misses * 70 - elapsed * 4)))
@@ -347,7 +404,7 @@ function Stage1({
   }
 
   return (
-    <StageShell hud={hud} title="رضّاعة بونغ 🍼" toast={toast}>
+    <StageShell hud={hud} title="رضّاعة سليمان بونغ 🍼" toast={toast}>
       <canvas
         ref={canvasRef}
         className="stage-canvas"
@@ -487,6 +544,7 @@ function Stage2({
   useEffect(() => {
     wifeRef.current = wife
   }, [wife])
+  const startActionAudio = useStage2ActionAudio(true)
   const [hud, setHud] = useState<HudState>({ stage: 2, hearts: 3, wife })
   const [toast, setToast] = useState('اضغط للقفز، تفادى الزوجة والطفل وخذ القلوب')
   const state = useRef({
@@ -498,7 +556,7 @@ function Stage2({
     cameraX: 0,
     jumpQueued: false,
     invulnUntil: 0,
-    player: { x: 74, y: 220, w: 40, h: 50, vy: 0, onGround: false, prevY: 220 },
+    player: { x: 74, y: 220, w: 40, h: 50, vy: 0, onGround: false, prevY: 220, safeX: 74, safeY: 220 },
     level: null as null | ReturnType<typeof createPlatformLevel>,
     done: false,
     initialized: false,
@@ -514,12 +572,13 @@ function Stage2({
     const jump = (event: KeyboardEvent) => {
       if (event.key === ' ' || event.key === 'ArrowUp' || event.key.toLowerCase() === 'w') {
         event.preventDefault()
+        startActionAudio()
         state.current.jumpQueued = true
       }
     }
     window.addEventListener('keydown', jump)
     return () => window.removeEventListener('keydown', jump)
-  }, [])
+  }, [startActionAudio])
 
   useEffect(() => {
     let frame = 0
@@ -547,6 +606,7 @@ function Stage2({
         s.initialized = true
         player.y = floorY - player.h
         player.prevY = player.y
+        player.safeY = player.y
         player.vy = 0
         player.onGround = true
       }
@@ -563,12 +623,11 @@ function Stage2({
           return
         }
         s.invulnUntil = now + 1200
-        const groundPlatforms = level.platforms.filter((block) => block.kind === 'ground')
-        const respawnPlatform = [...groundPlatforms].reverse().find((block) => block.x <= player.x) ?? groundPlatforms[0]
-        player.x = Math.max(74, respawnPlatform.x + 40)
-        player.y = floorY - player.h
+        player.x = clamp(player.safeX, 74, level.worldWidth - 120)
+        player.y = player.safeY
         player.vy = 0
         player.onGround = true
+        s.cameraX = clamp(player.x - w * 0.34, 0, Math.max(0, level.worldWidth - w))
       }
 
       if (s.jumpQueued && player.onGround) {
@@ -592,9 +651,11 @@ function Stage2({
           player.y = rect.y - player.h
           player.vy = 0
           player.onGround = true
+          player.safeX = clamp(player.x - 18, rect.x + 14, rect.x + rect.w - player.w - 14)
+          player.safeY = player.y
         }
       }
-      if (player.y > h + 90) hurt('طحت بالحفرة! اقفز بدري')
+      if (player.y > h + 90) hurt('طحت بالحفرة! اقفز مبچر')
       if (failed) return
 
       const playerRect = { x: player.x, y: player.y, w: player.w, h: player.h }
@@ -624,9 +685,9 @@ function Stage2({
             player.vy = -360
             player.onGround = false
             s.score += 180
-            setToast(foe.kind === 'wife' ? 'قفزت فوق الزوجة!' : 'تفاديت الطفل!')
+            setToast(foe.kind === 'wife' ? 'قفزت فوق الزوجة!' : 'تفاديت سليمان!')
           } else {
-            hurt(foe.kind === 'wife' ? 'الزوجة مسكتك 👸' : 'الطفل صادك 👶')
+            hurt(foe.kind === 'wife' ? 'الزوجة مسكتك 👸' : 'سليمان صادك 👶')
           }
         }
       }
@@ -742,6 +803,7 @@ function Stage2({
   }, [onFail, onWin, setWife])
 
   const jump = () => {
+    startActionAudio()
     state.current.jumpQueued = true
   }
 
@@ -818,6 +880,7 @@ function Stage3({
     ready: false,
     touchStart: null as null | SnakeCell,
     wallGraceUntil: 0,
+    pauseUntil: 0,
     done: false,
   })
   const cols = 12
@@ -866,6 +929,7 @@ function Stage3({
     s.nextDirection = 'right'
     s.lastStep = 0
     s.wallGraceUntil = 0
+    s.pauseUntil = 0
     spawnTarget()
   }, [spawnTarget])
 
@@ -916,7 +980,7 @@ function Stage3({
 
       const speed = clamp(155 - s.eaten * 3, 78, 155)
       if (!s.lastStep) s.lastStep = now
-      if (now - s.lastStep >= speed && !s.done) {
+      if (now - s.lastStep >= speed && now >= s.pauseUntil && !s.done) {
         s.lastStep = now
         s.direction = s.nextDirection
         const vector = snakeVectors[s.direction]
@@ -937,7 +1001,7 @@ function Stage3({
         if (wallHit || selfHit) {
           s.hearts -= 1
           s.wallGraceUntil = 0
-          setToast(wallHit ? 'اصطدمت بالطوفة!' : 'عضّيت نفسك!')
+          setToast(wallHit ? 'دعمت بالطوفة!' : 'عضّيت نفسك!')
           if (s.hearts <= 0) {
             onFail('FAIL_3')
             return
@@ -949,7 +1013,14 @@ function Stage3({
           if (nextHead.x === s.target.x && nextHead.y === s.target.y) {
             s.eaten += 1
             s.score += 120 + s.eaten * 8
-            setToast(s.eaten >= winTarget ? 'الثعبان شبع!' : `رأس جديد ${s.eaten}/${winTarget}`)
+            if (s.eaten >= winTarget) {
+              setToast('الثعبان شبع!')
+            } else if (s.eaten % 3 === 0) {
+              s.pauseUntil = now + 2000
+              setToast(snakeBoosts[(s.eaten / 3 - 1) % snakeBoosts.length])
+            } else {
+              setToast(`رأس جديد ${s.eaten}/${winTarget}`)
+            }
             if (s.eaten >= winTarget && !s.done) {
               s.done = true
               onWin(Math.max(0, Math.round(1600 + s.score + s.hearts * 220)))
@@ -1264,7 +1335,7 @@ function App() {
           <p className="eyebrow">شلون ألعب؟</p>
           <h1>ثلاث ألعاب أسرع وأوضح</h1>
           <ul className="howto-list">
-            <li>حرّك المضرب وردّ الرضاعة صوب فم البيبي 🍼</li>
+            <li>حرّك المضرب وردّ الرضاعة صوب فم سليمان 🍼</li>
             <li>اضغط للقفز، تفادى الزوجة والطفل وخذ القلوب 🏁</li>
             <li>حرّك الثعبان بالسحب أو الأزرار وكل الوجوه 🐍</li>
           </ul>
@@ -1278,8 +1349,8 @@ function App() {
     <main className="game-screen title-screen">
       <section className="title-hero">
         <p className="eyebrow">نسخة اللعب الجديدة</p>
-        <h1>بو رضّاعة: مهمة الديوانية</h1>
-        <p>٣ مراحل أسرع، أخف، وأوضح على الموبايل 🔥</p>
+        <h1>بو رضّاعة: مهمة الذهاب للديوانية</h1>
+        <p>٣ مراحل شد حيلك فيهم عشان مويس يقدر يحضر الديوانية 🔥</p>
         <div className="actions">
           <button type="button" onClick={() => setScreen('stage1')}>ابدأ 🎮</button>
           <button type="button" className="secondary" onClick={() => setScreen('howTo')}>شلون ألعب؟</button>
