@@ -337,6 +337,13 @@ input:focus-visible {
   gap: 10px;
 }
 
+.score-formula {
+  margin: 0 0 12px;
+  color: #52666c;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
 .score-panel dl div,
 .leaderboard li {
   display: grid;

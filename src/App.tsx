@@ -11,6 +11,7 @@ type LeaderRow = { id?: string; name: string; score: number; rank?: number }
 
 const PLAYER_STAGE1_SRC = `${import.meta.env.BASE_URL}player-stage1.jpg`
 const SNAKE_HEAD_SRC = `${import.meta.env.BASE_URL}snake-head.jpg`
+const SNAKE_TARGET_SRCS = Array.from({ length: 7 }, (_, index) => `${import.meta.env.BASE_URL}snake-target-${index + 1}.jpg`)
 const stageLabel = ['المرحلة ١ من ٣', 'المرحلة ٢ من ٣', 'المرحلة ٣ من ٣']
 const failText: Record<FailKind, string> = {
   FAIL_1: 'البيبي قال: لا تحاول مرة ثانية بهالطريقة 😭',
@@ -20,8 +21,14 @@ const failText: Record<FailKind, string> = {
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
-const totalScore = (scores: Record<StageKey, number>, wife: number) =>
-  clamp(Math.round(scores.s1 + scores.s2 + scores.s3 + wife * 3), 0, 5000)
+const scoreBreakdown = (scores: Record<StageKey, number>, wife: number) => {
+  const stageTotal = Math.round(scores.s1 + scores.s2 + scores.s3)
+  const wifeBonus = Math.round(wife * 3)
+  const completionBonus = scores.s1 > 0 && scores.s2 > 0 && scores.s3 > 0 ? 500 : 0
+  const total = clamp(stageTotal + wifeBonus + completionBonus, 0, 6500)
+  return { stageTotal, wifeBonus, completionBonus, total }
+}
+const totalScore = (scores: Record<StageKey, number>, wife: number) => scoreBreakdown(scores, wife).total
 
 function drawEmoji(ctx: CanvasRenderingContext2D, emoji: string, x: number, y: number, size: number) {
   ctx.font = `${size}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`
@@ -739,7 +746,7 @@ function Stage2({
 }
 
 type SnakeCell = { x: number; y: number }
-type SnakeTarget = SnakeCell & { face: string }
+type SnakeTarget = SnakeCell & { imageIndex: number }
 type SnakeDirection = 'up' | 'down' | 'left' | 'right'
 
 const snakeVectors: Record<SnakeDirection, SnakeCell> = {
@@ -756,8 +763,6 @@ const oppositeDirection: Record<SnakeDirection, SnakeDirection> = {
   right: 'left',
 }
 
-const snakeFaces = ['🧔', '👨', '👨‍🦱', '👨‍🦲', '👴']
-
 function Stage3({
   wife,
   onWin,
@@ -769,9 +774,10 @@ function Stage3({
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const headPhotoRef = useRef<HTMLImageElement | null>(null)
+  const targetPhotoRefs = useRef<HTMLImageElement[]>([])
   useCanvas(canvasRef)
   const [hud, setHud] = useState<HudState>({ stage: 3, hearts: 3, wife })
-  const [toast, setToast] = useState('اسحب أو استخدم الأزرار، كل رؤوس الرجال وكبّر الثعبان')
+  const [toast, setToast] = useState('اسحب أو استخدم الأزرار، كل الوجوه وكبّر الثعبان')
   const state = useRef({
     last: 0,
     lastStep: 0,
@@ -785,19 +791,25 @@ function Stage3({
       { x: 6, y: 10 },
       { x: 5, y: 10 },
     ] as SnakeCell[],
-    target: { x: 13, y: 10, face: snakeFaces[0] } as SnakeTarget,
+    target: { x: 8, y: 7, imageIndex: 0 } as SnakeTarget,
     ready: false,
     touchStart: null as null | SnakeCell,
+    wallGraceUntil: 0,
     done: false,
   })
-  const cols = 16
-  const rows = 18
+  const cols = 12
+  const rows = 14
   const winTarget = 25
 
   useEffect(() => {
     const image = new Image()
     image.src = SNAKE_HEAD_SRC
     headPhotoRef.current = image
+    targetPhotoRefs.current = SNAKE_TARGET_SRCS.map((src) => {
+      const targetImage = new Image()
+      targetImage.src = src
+      return targetImage
+    })
   }, [])
 
   const setDirection = useCallback((direction: SnakeDirection) => {
@@ -808,12 +820,12 @@ function Stage3({
   const spawnTarget = useCallback(() => {
     const s = state.current
     const occupied = new Set(s.snake.map((part) => `${part.x},${part.y}`))
-    let next: SnakeTarget = { x: 3, y: 3, face: snakeFaces[s.eaten % snakeFaces.length] }
+    let next: SnakeTarget = { x: 3, y: 3, imageIndex: s.eaten % SNAKE_TARGET_SRCS.length }
     for (let attempt = 0; attempt < 200; attempt += 1) {
       const x = Math.floor(rand(1, cols - 1))
       const y = Math.floor(rand(1, rows - 1))
       if (!occupied.has(`${x},${y}`)) {
-        next = { x, y, face: snakeFaces[s.eaten % snakeFaces.length] }
+        next = { x, y, imageIndex: s.eaten % SNAKE_TARGET_SRCS.length }
         break
       }
     }
@@ -823,13 +835,14 @@ function Stage3({
   const resetSnake = useCallback(() => {
     const s = state.current
     s.snake = [
-      { x: 7, y: 10 },
-      { x: 6, y: 10 },
-      { x: 5, y: 10 },
+      { x: 5, y: 7 },
+      { x: 4, y: 7 },
+      { x: 3, y: 7 },
     ]
     s.direction = 'right'
     s.nextDirection = 'right'
     s.lastStep = 0
+    s.wallGraceUntil = 0
     spawnTarget()
   }, [spawnTarget])
 
@@ -888,8 +901,19 @@ function Stage3({
         const nextHead = { x: head.x + vector.x, y: head.y + vector.y }
         const wallHit = nextHead.x < 0 || nextHead.y < 0 || nextHead.x >= cols || nextHead.y >= rows
         const selfHit = s.snake.some((part, index) => index > 0 && part.x === nextHead.x && part.y === nextHead.y)
+        if (wallHit) {
+          if (!s.wallGraceUntil) {
+            s.wallGraceUntil = now + 520
+            setToast('انتبه للطوفة! عندك لحظة تلف')
+          }
+          if (now < s.wallGraceUntil) {
+            frame = requestAnimationFrame(loop)
+            return
+          }
+        }
         if (wallHit || selfHit) {
           s.hearts -= 1
+          s.wallGraceUntil = 0
           setToast(wallHit ? 'اصطدمت بالطوفة!' : 'عضّيت نفسك!')
           if (s.hearts <= 0) {
             onFail('FAIL_3')
@@ -897,6 +921,7 @@ function Stage3({
           }
           resetSnake()
         } else {
+          s.wallGraceUntil = 0
           s.snake.unshift(nextHead)
           if (nextHead.x === s.target.x && nextHead.y === s.target.y) {
             s.eaten += 1
@@ -926,17 +951,11 @@ function Stage3({
       ctx.beginPath()
       ctx.roundRect(ox - 8, oy - 8, boardW + 16, boardH + 16, 18)
       ctx.fill()
-      ctx.strokeStyle = 'rgba(23,95,120,.22)'
+      ctx.strokeStyle = 'rgba(23,95,120,.18)'
       ctx.lineWidth = 3
       ctx.stroke()
-      ctx.fillStyle = 'rgba(23,95,120,.05)'
-      for (let x = 0; x < cols; x += 1) {
-        for (let y = 0; y < rows; y += 1) {
-          if ((x + y) % 2 === 0) ctx.fillRect(ox + x * cell, oy + y * cell, cell, cell)
-        }
-      }
 
-      drawEmoji(ctx, s.target.face, ox + s.target.x * cell + cell / 2, oy + s.target.y * cell + cell / 2, cell * 1.12)
+      drawRoundImage(ctx, targetPhotoRefs.current[s.target.imageIndex], ox + s.target.x * cell + cell / 2, oy + s.target.y * cell + cell / 2, cell * 1.22, '🧔')
       s.snake.forEach((part, index) => {
         const x = ox + part.x * cell
         const y = oy + part.y * cell
@@ -944,7 +963,7 @@ function Stage3({
         ctx.beginPath()
         ctx.roundRect(x + 2, y + 2, cell - 4, cell - 4, Math.max(5, cell * 0.28))
         ctx.fill()
-        if (index === 0) drawRoundImage(ctx, headPhotoRef.current, x + cell / 2, y + cell / 2, cell * 0.96, '🧔')
+        if (index === 0) drawRoundImage(ctx, headPhotoRef.current, x + cell / 2, y + cell / 2, cell * 1.16, '🧔')
       })
 
       ctx.fillStyle = '#14333d'
@@ -1019,18 +1038,21 @@ function ScoreScreen({
   onSubmit: (name: string) => void
 }) {
   const [name, setName] = useState(CONFIG.PLAYER_NAME)
-  const total = totalScore(scores, wife)
+  const score = scoreBreakdown(scores, wife)
   return (
     <main className="game-screen card-screen">
       <section className="panel score-panel">
         <p className="eyebrow">سجّل النقاط 🏆</p>
         <h1>الحسبة النهائية</h1>
+        <p className="score-formula">المعادلة: أداء المراحل + رضا الزوجة × ٣ + بونص إنهاء المهمة</p>
         <dl>
           <div><dt>المرحلة ١</dt><dd>{scores.s1}</dd></div>
           <div><dt>المرحلة ٢</dt><dd>{scores.s2}</dd></div>
           <div><dt>المرحلة ٣</dt><dd>{scores.s3}</dd></div>
-          <div><dt>رضا الزوجة</dt><dd>{wife * 3}</dd></div>
-          <div className="total"><dt>المجموع</dt><dd>{total}</dd></div>
+          <div><dt>أداء المراحل</dt><dd>{score.stageTotal}</dd></div>
+          <div><dt>رضا الزوجة × ٣</dt><dd>{score.wifeBonus}</dd></div>
+          <div><dt>بونص إنهاء المهمة</dt><dd>{score.completionBonus}</dd></div>
+          <div className="total"><dt>المجموع</dt><dd>{score.total}</dd></div>
         </dl>
         <label>
           الاسم
@@ -1221,7 +1243,7 @@ function App() {
           <ul className="howto-list">
             <li>حرّك المضرب وردّ الرضاعة صوب فم البيبي 🍼</li>
             <li>اضغط للقفز، تفادى الزوجة والطفل وخذ القلوب 🏁</li>
-            <li>حرّك الثعبان بالسحب أو الأزرار وكل رؤوس الرجال 🐍</li>
+            <li>حرّك الثعبان بالسحب أو الأزرار وكل الوجوه 🐍</li>
           </ul>
           <button type="button" onClick={() => setScreen('stage1')}>كمّل</button>
         </section>
