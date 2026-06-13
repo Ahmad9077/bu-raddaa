@@ -1233,7 +1233,7 @@ function App() {
           <ul className="howto-list">
             <li>حرّك المضرب وردّ الرضاعة صوب فم سليمان 🍼</li>
             <li>تفادى الزوجة وسليمان وخذ القلوب 🏁</li>
-            <li>حرّك الثعبان بالسحب أو الأزرار وكل الوجوه 🐍</li>
+            <li>حرّك الثعبان بأصبعك وأكل الوجوه 🐍</li>
           </ul>
           <button type="button" onClick={() => setScreen('stage1')}>كمّل</button>
         </section>
