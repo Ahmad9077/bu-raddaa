@@ -6,21 +6,18 @@ import './App.css'
 type Screen = 'title' | 'howTo' | 'stage1' | 'stage2' | 'stage3' | 'win' | 'score' | 'leaderboard' | 'fail'
 type StageKey = 's1' | 's2' | 's3'
 type FailKind = 'FAIL_1' | 'FAIL_2' | 'FAIL_3'
-type Vec = { x: number; y: number }
 type HudState = { stage: number; hearts: number; wife: number; mood?: 'jump' | 'shake' | 'sweat' }
 type LeaderRow = { id?: string; name: string; score: number; rank?: number }
 
-const PHOTO_SRC = `${import.meta.env.BASE_URL}bo-raddaa.jpg`
 const PLAYER_STAGE1_SRC = `${import.meta.env.BASE_URL}player-stage1.jpg`
 const stageLabel = ['المرحلة ١ من ٣', 'المرحلة ٢ من ٣', 'المرحلة ٣ من ٣']
 const failText: Record<FailKind, string> = {
   FAIL_1: 'البيبي قال: لا تحاول مرة ثانية بهالطريقة 😭',
   FAIL_2: 'الزوجة والطفل وقفوا طريقك 😱',
-  FAIL_3: 'قفطوك قبل الديوانية… ارجع حاول بهدوء 🥲',
+  FAIL_3: 'الثعبان خبط وانتهت الجولة 🐍',
 }
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
-const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y)
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
 const totalScore = (scores: Record<StageKey, number>, wife: number) =>
   clamp(Math.round(scores.s1 + scores.s2 + scores.s3 + wife * 3), 0, 5000)
@@ -30,26 +27,6 @@ function drawEmoji(ctx: CanvasRenderingContext2D, emoji: string, x: number, y: n
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(emoji, x, y)
-}
-
-function drawFace(ctx: CanvasRenderingContext2D, image: HTMLImageElement | null, x: number, y: number, radius: number) {
-  ctx.save()
-  ctx.beginPath()
-  ctx.arc(x, y, radius, 0, Math.PI * 2)
-  ctx.clip()
-  if (image?.complete && image.naturalWidth > 0) {
-    ctx.drawImage(image, 250, 150, 560, 560, x - radius, y - radius, radius * 2, radius * 2)
-  } else {
-    ctx.fillStyle = '#fff0c8'
-    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2)
-    drawEmoji(ctx, '🧔', x, y, radius * 1.2)
-  }
-  ctx.restore()
-  ctx.strokeStyle = '#175f78'
-  ctx.lineWidth = 4
-  ctx.beginPath()
-  ctx.arc(x, y, radius, 0, Math.PI * 2)
-  ctx.stroke()
 }
 
 function useCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
@@ -117,11 +94,13 @@ function StageShell({
   title,
   toast,
   children,
+  hideAvatar = false,
 }: {
   hud: HudState
   title: string
   toast: string
   children: React.ReactNode
+  hideAvatar?: boolean
 }) {
   return (
     <main className="game-screen stage-screen">
@@ -132,7 +111,7 @@ function StageShell({
         <p>{toast}</p>
       </section>
       {children}
-      <PlayerAvatar mood={hud.mood} wife={hud.wife} />
+      {hideAvatar ? null : <PlayerAvatar mood={hud.mood} wife={hud.wife} />}
     </main>
   )
 }
@@ -149,7 +128,6 @@ function Stage1({
   onFail: (kind: FailKind) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const photoRef = useRef<HTMLImageElement | null>(null)
   useCanvas(canvasRef)
   const [hud, setHud] = useState<HudState>({ stage: 1, hearts: 3, wife })
   const [toast, setToast] = useState('حرّك المضرب واضرب الرضاعة لفم البيبي')
@@ -167,12 +145,6 @@ function Stage1({
     pauseUntil: 0,
     done: false,
   })
-
-  useEffect(() => {
-    const image = new Image()
-    image.src = PLAYER_STAGE1_SRC
-    photoRef.current = image
-  }, [])
 
   useEffect(() => {
     let frame = 0
@@ -195,9 +167,9 @@ function Stage1({
       const paddleY = h - 92
       const baby = {
         x: w * 0.5 + Math.sin(elapsed * 0.95) * Math.min(64, w * 0.16),
-        y: h * 0.1,
+        y: h * 0.065,
       }
-      const mouth = { x: baby.x, y: baby.y + 34 }
+      const mouth = { x: baby.x, y: baby.y + 25 }
       const bottle = s.bottle
       const resetBottle = (direction: 1 | -1) => {
         bottle.x = direction < 0 ? s.paddleX : w * 0.5
@@ -232,7 +204,7 @@ function Stage1({
         }
 
         if (bottle.vy < 0 && bottle.y < mouth.y + 18) {
-          if (Math.abs(bottle.x - mouth.x) < 58) {
+          if (Math.abs(bottle.x - mouth.x) < 38) {
           s.feeds += 1
           setWife((value) => clamp(value + 8, 0, 100))
           setToast(s.feeds >= 5 ? 'البيبي شبع وانفتح الطريق 🎉' : `رضعة ممتازة ${s.feeds}/5`)
@@ -281,42 +253,12 @@ function Stage1({
       ctx.stroke()
       ctx.setLineDash([])
 
-      const photo = photoRef.current
-      const photoW = clamp(w * 0.3, 118, 162)
-      const photoH = photoW * 1.14
-      const photoX = clamp(s.paddleX - photoW * 0.5, 8, w - photoW - 8)
-      const photoY = clamp(paddleY + 18, h * 0.5, h - photoH - 8)
-
-      ctx.save()
-      ctx.shadowColor = 'rgba(23,51,61,.22)'
-      ctx.shadowBlur = 14
-      ctx.beginPath()
-      ctx.roundRect(photoX, photoY, photoW, photoH, 18)
-      ctx.clip()
-      if (photo?.complete && photo.naturalWidth > 0) ctx.drawImage(photo, 0, 0, photo.naturalWidth, photo.naturalHeight * 0.84, photoX, photoY, photoW, photoH)
-      else {
-        ctx.fillStyle = '#fff0c8'
-        ctx.fillRect(photoX, photoY, photoW, photoH)
-        drawEmoji(ctx, '🧔', s.paddleX, photoY + photoH * 0.45, photoW * 0.45)
-      }
-      ctx.restore()
-      ctx.strokeStyle = '#175f78'
-      ctx.lineWidth = 4
-      ctx.beginPath()
-      ctx.roundRect(photoX, photoY, photoW, photoH, 18)
-      ctx.stroke()
-
       ctx.fillStyle = 'rgba(48,164,108,.12)'
       ctx.beginPath()
-      ctx.arc(baby.x, baby.y + 15, Math.min(54, w * 0.14), 0, Math.PI * 2)
+      ctx.arc(baby.x, baby.y + 11, Math.min(40, w * 0.1), 0, Math.PI * 2)
       ctx.fill()
-      drawEmoji(ctx, '👶', baby.x, baby.y, Math.min(66, w * 0.17))
-      ctx.strokeStyle = '#30a46c'
-      ctx.lineWidth = 5
-      ctx.beginPath()
-      ctx.arc(mouth.x, mouth.y, 42, 0, Math.PI * 2)
-      ctx.stroke()
-      drawEmoji(ctx, '😮', mouth.x, mouth.y, 23)
+      drawEmoji(ctx, '👶', baby.x, baby.y, Math.min(48, w * 0.12))
+      drawEmoji(ctx, '😮', mouth.x, mouth.y, 18)
 
       ctx.save()
       ctx.shadowColor = 'rgba(23,51,61,.18)'
@@ -415,7 +357,7 @@ function rectsOverlap(a: { x: number; y: number; w: number; h: number }, b: { x:
 
 function createPlatformLevel() {
   return {
-    worldWidth: 3600,
+    worldWidth: 4800,
     platforms: [
       { x: 0, yOff: 0, w: 370, h: 34, kind: 'ground' },
       { x: 455, yOff: 0, w: 330, h: 34, kind: 'ground' },
@@ -425,6 +367,9 @@ function createPlatformLevel() {
       { x: 2310, yOff: 0, w: 360, h: 34, kind: 'ground' },
       { x: 2750, yOff: 0, w: 310, h: 34, kind: 'ground' },
       { x: 3160, yOff: 0, w: 440, h: 34, kind: 'ground' },
+      { x: 3700, yOff: 0, w: 320, h: 34, kind: 'ground' },
+      { x: 4120, yOff: 0, w: 270, h: 34, kind: 'ground' },
+      { x: 4490, yOff: 0, w: 310, h: 34, kind: 'ground' },
       { x: 210, yOff: 108, w: 130, h: 22, kind: 'brick' },
       { x: 575, yOff: 150, w: 130, h: 22, kind: 'brick' },
       { x: 970, yOff: 112, w: 170, h: 22, kind: 'brick' },
@@ -433,8 +378,12 @@ function createPlatformLevel() {
       { x: 2395, yOff: 146, w: 150, h: 22, kind: 'brick' },
       { x: 2860, yOff: 112, w: 140, h: 22, kind: 'brick' },
       { x: 3285, yOff: 160, w: 150, h: 22, kind: 'brick' },
+      { x: 3775, yOff: 130, w: 140, h: 22, kind: 'brick' },
+      { x: 4190, yOff: 170, w: 135, h: 22, kind: 'brick' },
+      { x: 4560, yOff: 124, w: 130, h: 22, kind: 'brick' },
       { x: 1245, yOff: 58, w: 70, h: 58, kind: 'pipe' },
       { x: 2668, yOff: 58, w: 70, h: 58, kind: 'pipe' },
+      { x: 4058, yOff: 58, w: 70, h: 58, kind: 'pipe' },
     ] as PlatformBlock[],
     items: [
       { id: 1, x: 620, yOff: 205, taken: false },
@@ -443,6 +392,9 @@ function createPlatformLevel() {
       { id: 4, x: 2440, yOff: 202, taken: false },
       { id: 5, x: 2900, yOff: 164, taken: false },
       { id: 6, x: 3330, yOff: 218, taken: false },
+      { id: 7, x: 3820, yOff: 184, taken: false },
+      { id: 8, x: 4245, yOff: 226, taken: false },
+      { id: 9, x: 4620, yOff: 178, taken: false },
     ] as PlatformCollectible[],
     foes: [
       { id: 1, x: 560, yOff: 34, w: 38, h: 36, vx: 45, minX: 500, maxX: 720, kind: 'wife', alive: true },
@@ -452,6 +404,9 @@ function createPlatformLevel() {
       { id: 5, x: 2440, yOff: 34, w: 38, h: 36, vx: 48, minX: 2340, maxX: 2625, kind: 'wife', alive: true },
       { id: 6, x: 2910, yOff: 34, w: 36, h: 34, vx: -55, minX: 2790, maxX: 3030, kind: 'baby', alive: true },
       { id: 7, x: 3310, yOff: 34, w: 38, h: 36, vx: 52, minX: 3200, maxX: 3540, kind: 'wife', alive: true },
+      { id: 8, x: 3820, yOff: 34, w: 36, h: 34, vx: -58, minX: 3730, maxX: 3970, kind: 'baby', alive: true },
+      { id: 9, x: 4250, yOff: 34, w: 38, h: 36, vx: 54, minX: 4160, maxX: 4350, kind: 'wife', alive: true },
+      { id: 10, x: 4590, yOff: 34, w: 36, h: 34, vx: -60, minX: 4510, maxX: 4760, kind: 'baby', alive: true },
     ] as PlatformFoe[],
   }
 }
@@ -468,6 +423,7 @@ function Stage2({
   onFail: (kind: FailKind) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const photoRef = useRef<HTMLImageElement | null>(null)
   useCanvas(canvasRef)
   const [hud, setHud] = useState<HudState>({ stage: 2, hearts: 3, wife })
   const [toast, setToast] = useState('اضغط للقفز، تفادى الزوجة والطفل وخذ القلوب')
@@ -480,10 +436,16 @@ function Stage2({
     cameraX: 0,
     jumpQueued: false,
     invulnUntil: 0,
-    player: { x: 74, y: 220, w: 36, h: 46, vy: 0, onGround: false, prevY: 220 },
+    player: { x: 74, y: 220, w: 40, h: 50, vy: 0, onGround: false, prevY: 220 },
     level: null as null | ReturnType<typeof createPlatformLevel>,
     done: false,
   })
+
+  useEffect(() => {
+    const image = new Image()
+    image.src = PLAYER_STAGE1_SRC
+    photoRef.current = image
+  }, [])
 
   useEffect(() => {
     const jump = (event: KeyboardEvent) => {
@@ -545,7 +507,7 @@ function Stage2({
       s.jumpQueued = false
 
       player.prevY = player.y
-      player.x = clamp(player.x + 132 * dt, 40, level.worldWidth - 90)
+      player.x = clamp(player.x + 142 * dt, 40, level.worldWidth - 90)
       player.vy += 1320 * dt
       player.y += player.vy * dt
       player.onGround = false
@@ -652,7 +614,7 @@ function Stage2({
       ctx.fillStyle = '#14333d'
       ctx.font = '900 18px Cairo, sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText(`قلوب ${s.heartsTaken}/6`, w / 2, 30)
+      ctx.fillText(`قلوب ${s.heartsTaken}/9`, w / 2, 30)
       ctx.fillText(`المسافة ${Math.round((player.x / level.worldWidth) * 100)}%`, w / 2, 56)
 
       level.items.forEach((item) => {
@@ -667,15 +629,24 @@ function Stage2({
 
       ctx.save()
       if (now < s.invulnUntil && Math.floor(now / 120) % 2 === 0) ctx.globalAlpha = 0.42
-      ctx.fillStyle = '#fff7d8'
+      const playerScreenX = player.x - cam
+      ctx.beginPath()
+      ctx.roundRect(playerScreenX - 6, player.y - 4, player.w + 12, player.h + 8, 13)
+      ctx.clip()
+      if (photoRef.current?.complete && photoRef.current.naturalWidth > 0) {
+        const image = photoRef.current
+        ctx.drawImage(image, 0, 0, image.naturalWidth, image.naturalHeight * 0.86, playerScreenX - 6, player.y - 4, player.w + 12, player.h + 8)
+      } else {
+        ctx.fillStyle = '#fff7d8'
+        ctx.fillRect(playerScreenX - 6, player.y - 4, player.w + 12, player.h + 8)
+        drawEmoji(ctx, '🧔', player.x + player.w / 2 - cam, player.y + 22, 34)
+      }
+      ctx.restore()
       ctx.strokeStyle = '#175f78'
       ctx.lineWidth = 4
       ctx.beginPath()
-      ctx.roundRect(player.x - cam, player.y, player.w, player.h, 10)
-      ctx.fill()
+      ctx.roundRect(playerScreenX - 6, player.y - 4, player.w + 12, player.h + 8, 13)
       ctx.stroke()
-      drawEmoji(ctx, '🧔', player.x + player.w / 2 - cam, player.y + 22, 34)
-      ctx.restore()
 
       ctx.fillStyle = 'rgba(23,95,120,.14)'
       ctx.fillRect(0, h - 42, w, 42)
@@ -712,7 +683,25 @@ function Stage2({
   )
 }
 
-type RunnerThing = { id: number; x: number; y: number; speed: number; kind: 'wife' | 'key' | 'burger'; size: number }
+type SnakeCell = { x: number; y: number }
+type SnakeTarget = SnakeCell & { face: string }
+type SnakeDirection = 'up' | 'down' | 'left' | 'right'
+
+const snakeVectors: Record<SnakeDirection, SnakeCell> = {
+  up: { x: 0, y: -1 },
+  down: { x: 0, y: 1 },
+  left: { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
+}
+
+const oppositeDirection: Record<SnakeDirection, SnakeDirection> = {
+  up: 'down',
+  down: 'up',
+  left: 'right',
+  right: 'left',
+}
+
+const snakeFaces = ['🧔', '👨', '👨‍🦱', '👨‍🦲', '👴']
 
 function Stage3({
   wife,
@@ -724,32 +713,93 @@ function Stage3({
   onFail: (kind: FailKind) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const photoRef = useRef<HTMLImageElement | null>(null)
   useCanvas(canvasRef)
   const [hud, setHud] = useState<HudState>({ stage: 3, hearts: 3, wife })
-  const [toast, setToast] = useState('اسحب الوجه، تفادى الزوجة والهمبرجر واجمع المفاتيح')
+  const [toast, setToast] = useState('اسحب أو استخدم الأزرار، كل رؤوس الرجال وكبّر الثعبان')
   const state = useRef({
-    start: 0,
     last: 0,
-    spawn: 0,
-    nextId: 1,
+    lastStep: 0,
     hearts: 3,
     score: 0,
-    freeze: 0,
-    faceScale: 1,
-    combo: 0,
-    player: { x: 88, y: 380 },
-    target: { x: 88, y: 380 },
-    finger: { x: 88, y: 460 },
-    things: [] as RunnerThing[],
+    eaten: 0,
+    direction: 'right' as SnakeDirection,
+    nextDirection: 'right' as SnakeDirection,
+    snake: [
+      { x: 7, y: 10 },
+      { x: 6, y: 10 },
+      { x: 5, y: 10 },
+    ] as SnakeCell[],
+    target: { x: 13, y: 10, face: snakeFaces[0] } as SnakeTarget,
+    ready: false,
+    touchStart: null as null | SnakeCell,
     done: false,
   })
+  const cols = 18
+  const rows = 22
+  const winTarget = 25
+
+  const setDirection = useCallback((direction: SnakeDirection) => {
+    const s = state.current
+    if (oppositeDirection[direction] !== s.direction) s.nextDirection = direction
+  }, [])
+
+  const spawnTarget = useCallback(() => {
+    const s = state.current
+    const occupied = new Set(s.snake.map((part) => `${part.x},${part.y}`))
+    let next: SnakeTarget = { x: 3, y: 3, face: snakeFaces[s.eaten % snakeFaces.length] }
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const x = Math.floor(rand(1, cols - 1))
+      const y = Math.floor(rand(1, rows - 1))
+      if (!occupied.has(`${x},${y}`)) {
+        next = { x, y, face: snakeFaces[s.eaten % snakeFaces.length] }
+        break
+      }
+    }
+    s.target = next
+  }, [])
+
+  const resetSnake = useCallback(() => {
+    const s = state.current
+    s.snake = [
+      { x: 7, y: 10 },
+      { x: 6, y: 10 },
+      { x: 5, y: 10 },
+    ]
+    s.direction = 'right'
+    s.nextDirection = 'right'
+    s.lastStep = 0
+    spawnTarget()
+  }, [spawnTarget])
 
   useEffect(() => {
-    const image = new Image()
-    image.src = PHOTO_SRC
-    photoRef.current = image
-  }, [])
+    const keyMove = (event: KeyboardEvent) => {
+      const keyMap: Partial<Record<string, SnakeDirection>> = {
+        ArrowUp: 'up',
+        w: 'up',
+        W: 'up',
+        ArrowDown: 'down',
+        s: 'down',
+        S: 'down',
+        ArrowLeft: 'left',
+        a: 'left',
+        A: 'left',
+        ArrowRight: 'right',
+        d: 'right',
+        D: 'right',
+      }
+      const direction = keyMap[event.key]
+      if (direction) {
+        event.preventDefault()
+        setDirection(direction)
+      }
+    }
+    window.addEventListener('keydown', keyMove)
+    return () => window.removeEventListener('keydown', keyMove)
+  }, [setDirection])
+
+  useEffect(() => {
+    resetSnake()
+  }, [resetSnake])
 
   useEffect(() => {
     let frame = 0
@@ -764,157 +814,135 @@ function Stage3({
       const w = box.width
       const h = box.height
       const s = state.current
-      if (!s.start) s.start = now
-      const dt = Math.min((now - (s.last || now)) / 1000, 0.04)
       s.last = now
-      const elapsed = (now - s.start) / 1000
-      const timeLeft = Math.max(0, 42 - elapsed)
-      if (timeLeft <= 0 && !s.done) {
-        s.done = true
-        onWin(Math.max(0, Math.round(1000 + s.score + wife * 4 + s.hearts * 180)))
-        return
-      }
 
-      s.player.x += (s.target.x - s.player.x) * (1 - Math.pow(0.002, dt))
-      s.player.y += (s.target.y - s.player.y) * (1 - Math.pow(0.002, dt))
-      s.faceScale += (1 - s.faceScale) * (1 - Math.pow(0.18, dt))
-      s.spawn -= dt
-      if (s.spawn <= 0) {
-        const roll = Math.random()
-        const kind: RunnerThing['kind'] = roll < 0.52 ? 'wife' : roll < 0.72 ? 'burger' : 'key'
-        const scary = wife < 40 ? 40 : wife > 65 ? -20 : 0
-        s.things.push({
-          id: s.nextId++,
-          kind,
-          x: w + 50,
-          y: rand(82, h - 72),
-          speed: kind === 'key' ? rand(118, 158) : kind === 'burger' ? rand(132, 180) : rand(150 + scary, 220 + scary),
-          size: kind === 'wife' ? 44 : kind === 'burger' ? 38 : 34,
-        })
-        s.spawn = rand(0.42, 0.72)
-      }
-
-      const frozen = now < s.freeze
-      s.things.forEach((thing) => {
-        thing.x -= thing.speed * dt * (frozen && thing.kind === 'wife' ? 0.25 : 1)
-      })
-      s.things = s.things.filter((thing) => {
-        const faceRadius = 28 * s.faceScale
-        if (dist(thing, s.player) < thing.size * 0.7 + faceRadius) {
-          if (thing.kind === 'key') {
-            s.freeze = now + 3500
-            s.score += 250
-            s.combo += 1
-            s.faceScale = Math.max(0.82, s.faceScale - 0.08)
-            setToast('مفتاح! التفتيش بطّأ شوي 🗝️')
-          } else if (thing.kind === 'burger') {
-            s.faceScale = clamp(s.faceScale + 0.38, 1, 2.1)
-            s.score = Math.max(0, s.score - 90)
-            setToast('الهمبرجر كبّر الوجه! تفاداه 🍔')
-          } else if (thing.kind === 'wife') {
-            s.hearts -= 1
-            s.combo = 0
-            s.faceScale = clamp(s.faceScale + 0.18, 1, 2.1)
-            setToast('الزوجة شافتك!')
-            if (s.hearts <= 0) onFail('FAIL_3')
+      const speed = clamp(155 - s.eaten * 3, 78, 155)
+      if (!s.lastStep) s.lastStep = now
+      if (now - s.lastStep >= speed && !s.done) {
+        s.lastStep = now
+        s.direction = s.nextDirection
+        const vector = snakeVectors[s.direction]
+        const head = s.snake[0]
+        const nextHead = { x: head.x + vector.x, y: head.y + vector.y }
+        const wallHit = nextHead.x < 0 || nextHead.y < 0 || nextHead.x >= cols || nextHead.y >= rows
+        const selfHit = s.snake.some((part, index) => index > 0 && part.x === nextHead.x && part.y === nextHead.y)
+        if (wallHit || selfHit) {
+          s.hearts -= 1
+          setToast(wallHit ? 'اصطدمت بالطوفة!' : 'عضّيت نفسك!')
+          if (s.hearts <= 0) {
+            onFail('FAIL_3')
+            return
           }
-          return false
+          resetSnake()
+        } else {
+          s.snake.unshift(nextHead)
+          if (nextHead.x === s.target.x && nextHead.y === s.target.y) {
+            s.eaten += 1
+            s.score += 120 + s.eaten * 8
+            setToast(s.eaten >= winTarget ? 'الثعبان شبع!' : `رأس جديد ${s.eaten}/${winTarget}`)
+            if (s.eaten >= winTarget && !s.done) {
+              s.done = true
+              onWin(Math.max(0, Math.round(1600 + s.score + s.hearts * 220)))
+              return
+            }
+            spawnTarget()
+          } else {
+            s.snake.pop()
+          }
         }
-        return thing.x > -70
-      })
+      }
 
       ctx.clearRect(0, 0, w, h)
-      ctx.fillStyle = '#edf8f8'
+      ctx.fillStyle = '#f7fbf7'
       ctx.fillRect(0, 0, w, h)
+      const cell = Math.floor(Math.min(w / (cols + 1.2), (h - 28) / (rows + 1.2)))
+      const boardW = cell * cols
+      const boardH = cell * rows
+      const ox = (w - boardW) / 2
+      const oy = 14
       ctx.fillStyle = '#ffffff'
-      for (let y = 72; y < h; y += 78) {
-        ctx.fillRect(0, y, w, 36)
-      }
-      ctx.strokeStyle = 'rgba(23,95,120,.16)'
+      ctx.beginPath()
+      ctx.roundRect(ox - 8, oy - 8, boardW + 16, boardH + 16, 18)
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(23,95,120,.22)'
       ctx.lineWidth = 3
-      for (let y = 90; y < h; y += 78) {
-        ctx.beginPath()
-        ctx.moveTo(0, y)
-        ctx.lineTo(w, y)
-        ctx.stroke()
+      ctx.stroke()
+      ctx.fillStyle = 'rgba(23,95,120,.05)'
+      for (let x = 0; x < cols; x += 1) {
+        for (let y = 0; y < rows; y += 1) {
+          if ((x + y) % 2 === 0) ctx.fillRect(ox + x * cell, oy + y * cell, cell, cell)
+        }
       }
+
+      drawEmoji(ctx, s.target.face, ox + s.target.x * cell + cell / 2, oy + s.target.y * cell + cell / 2, cell * 0.95)
+      s.snake.forEach((part, index) => {
+        const x = ox + part.x * cell
+        const y = oy + part.y * cell
+        ctx.fillStyle = index === 0 ? '#175f78' : index % 2 === 0 ? '#30a46c' : '#237f93'
+        ctx.beginPath()
+        ctx.roundRect(x + 2, y + 2, cell - 4, cell - 4, Math.max(5, cell * 0.28))
+        ctx.fill()
+        if (index === 0) drawEmoji(ctx, '👀', x + cell / 2, y + cell / 2, cell * 0.54)
+      })
+
       ctx.fillStyle = '#14333d'
       ctx.font = '900 18px Cairo, sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText(`وصل الديوانية بعد ${Math.ceil(timeLeft)}`, w / 2, 32)
-      ctx.fillStyle = '#175f78'
-      ctx.font = '900 13px Cairo, sans-serif'
-      ctx.fillText(`مفاتيح ${s.combo}`, w / 2, 56)
-
-      s.things.forEach((thing) => {
-        const emoji = thing.kind === 'wife' ? (wife < 35 ? '👹' : '👸') : thing.kind === 'key' ? '🗝️' : '🍔'
-        drawEmoji(ctx, emoji, thing.x, thing.y, thing.size)
-      })
-      if (frozen) {
-        ctx.fillStyle = 'rgba(23,95,120,.12)'
-        ctx.fillRect(0, 0, w, h)
-        ctx.fillStyle = '#175f78'
-        ctx.fillText('التفتيش بطيء!', w / 2, 58)
-      }
-      ctx.fillStyle = 'rgba(245,166,35,.22)'
-      ctx.beginPath()
-      ctx.arc(s.player.x, s.player.y, 42 * s.faceScale, 0, Math.PI * 2)
-      ctx.fill()
-      drawFace(ctx, photoRef.current, s.player.x, s.player.y, 28 * s.faceScale)
-      ctx.strokeStyle = 'rgba(23,95,120,.34)'
-      ctx.setLineDash([6, 7])
-      ctx.beginPath()
-      ctx.moveTo(s.player.x, s.player.y)
-      ctx.lineTo(s.player.x, s.player.y + 80)
-      ctx.stroke()
-      ctx.setLineDash([])
-      drawEmoji(ctx, '👇', s.player.x, s.player.y + 96, 22)
-      setHud({ stage: 3, hearts: s.hearts, wife, mood: s.hearts < 3 ? 'shake' : undefined })
+      ctx.fillText(`الرؤوس ${s.eaten}/${winTarget}`, w / 2, h - 28)
+      setHud({ stage: 3, hearts: s.hearts, wife, mood: s.eaten % 5 === 0 && s.eaten > 0 ? 'jump' : undefined })
       frame = requestAnimationFrame(loop)
     }
     frame = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(frame)
-  }, [onFail, onWin, wife])
+  }, [onFail, onWin, resetSnake, spawnTarget])
 
-  const move = (clientX: number, clientY: number) => {
+  const handlePointerStart = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current
     if (!canvas) return
     const box = canvas.getBoundingClientRect()
-    const raw = {
-      x: clamp(clientX - box.left, 44, box.width - 44),
-      y: clamp(clientY - box.top, 78, box.height - 52),
-    }
-    state.current.finger = raw
-    state.current.target = {
-      x: raw.x,
-      y: clamp(raw.y - 80, 78, box.height - 52),
-    }
+    state.current.touchStart = { x: clientX - box.left, y: clientY - box.top }
+  }
+
+  const handlePointerMove = (clientX: number, clientY: number) => {
+    const start = state.current.touchStart
+    const canvas = canvasRef.current
+    if (!start || !canvas) return
+    const box = canvas.getBoundingClientRect()
+    const dx = clientX - box.left - start.x
+    const dy = clientY - box.top - start.y
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 22) return
+    setDirection(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up')
+    state.current.touchStart = { x: clientX - box.left, y: clientY - box.top }
   }
 
   return (
-    <StageShell hud={hud} title="الهروب للديوانية 🏃" toast={toast}>
+    <StageShell hud={hud} title="ثعبان الرؤوس 🐍" toast={toast} hideAvatar>
       <canvas
         ref={canvasRef}
-        className="stage-canvas"
+        className="stage-canvas snake-canvas"
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId)
-          move(event.clientX, event.clientY)
+          handlePointerStart(event.clientX, event.clientY)
         }}
-        onPointerMove={(event) => move(event.clientX, event.clientY)}
-        onMouseDown={(event) => move(event.clientX, event.clientY)}
-        onMouseMove={(event) => {
-          if (event.buttons) move(event.clientX, event.clientY)
-        }}
+        onPointerMove={(event) => handlePointerMove(event.clientX, event.clientY)}
         onTouchStart={(event) => {
           const touch = event.touches[0]
-          if (touch) move(touch.clientX, touch.clientY)
+          if (touch) handlePointerStart(touch.clientX, touch.clientY)
         }}
         onTouchMove={(event) => {
           event.preventDefault()
           const touch = event.touches[0]
-          if (touch) move(touch.clientX, touch.clientY)
+          if (touch) handlePointerMove(touch.clientX, touch.clientY)
         }}
       />
+      <div className="snake-pad" aria-label="Snake controls">
+        <button type="button" aria-label="Up" onClick={() => setDirection('up')}>▲</button>
+        <div>
+          <button type="button" aria-label="Left" onClick={() => setDirection('left')}>◀</button>
+          <button type="button" aria-label="Down" onClick={() => setDirection('down')}>▼</button>
+          <button type="button" aria-label="Right" onClick={() => setDirection('right')}>▶</button>
+        </div>
+      </div>
     </StageShell>
   )
 }
@@ -1131,7 +1159,7 @@ function App() {
           <ul className="howto-list">
             <li>حرّك المضرب وردّ الرضاعة صوب فم البيبي 🍼</li>
             <li>اضغط للقفز، تفادى الزوجة والطفل وخذ القلوب 🏁</li>
-            <li>اسحب الوجه واهرب من الزوجة والهمبرجر للديوانية 🏃</li>
+            <li>حرّك الثعبان بالسحب أو الأزرار وكل رؤوس الرجال 🐍</li>
           </ul>
           <button type="button" onClick={() => setScreen('stage1')}>كمّل</button>
         </section>

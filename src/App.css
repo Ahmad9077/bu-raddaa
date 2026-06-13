@@ -244,6 +244,34 @@ input:focus-visible {
   min-height: 430px;
 }
 
+.snake-canvas {
+  height: min(50svh, 560px);
+  min-height: 360px;
+}
+
+.snake-pad {
+  width: min(100%, 330px);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin: 10px auto 18px;
+}
+
+.snake-pad > div {
+  display: grid;
+  grid-template-columns: repeat(3, 64px);
+  gap: 8px;
+}
+
+.snake-pad button {
+  width: 64px;
+  min-height: 54px;
+  padding: 0;
+  border-radius: 14px;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
 .dpad {
   width: min(100%, 310px);
   display: grid;
@@ -474,6 +502,11 @@ input {
     min-height: 392px;
   }
 
+  .snake-canvas {
+    height: 45svh;
+    min-height: 330px;
+  }
+
   .stage-title {
     padding: 9px 14px;
   }
@@ -484,6 +517,10 @@ input {
 
   .dpad {
     margin: 6px auto 8px;
+  }
+
+  .snake-pad {
+    margin: 6px auto 10px;
   }
 }
 
