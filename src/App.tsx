@@ -31,6 +31,26 @@ function drawEmoji(ctx: CanvasRenderingContext2D, emoji: string, x: number, y: n
   ctx.fillText(emoji, x, y)
 }
 
+function drawFace(ctx: CanvasRenderingContext2D, image: HTMLImageElement | null, x: number, y: number, radius: number) {
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(x, y, radius, 0, Math.PI * 2)
+  ctx.clip()
+  if (image?.complete && image.naturalWidth > 0) {
+    ctx.drawImage(image, 250, 150, 560, 560, x - radius, y - radius, radius * 2, radius * 2)
+  } else {
+    ctx.fillStyle = '#fff0c8'
+    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2)
+    drawEmoji(ctx, '🧔', x, y, radius * 1.2)
+  }
+  ctx.restore()
+  ctx.strokeStyle = '#175f78'
+  ctx.lineWidth = 4
+  ctx.beginPath()
+  ctx.arc(x, y, radius, 0, Math.PI * 2)
+  ctx.stroke()
+}
+
 function useCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   useEffect(() => {
     const canvas = canvasRef.current
@@ -131,7 +151,7 @@ function Stage1({
   const photoRef = useRef<HTMLImageElement | null>(null)
   useCanvas(canvasRef)
   const [hud, setHud] = useState<HudState>({ stage: 1, hearts: 3, wife })
-  const [toast, setToast] = useState('حرّك بو رضّاعة تحت إصبعك، الهدف فوق الإصبع بشوي')
+  const [toast, setToast] = useState('حرّك الصورة، اليد والرضّاعة فوق إصبعك بشوي')
   const state = useRef({
     start: 0,
     last: 0,
@@ -183,28 +203,29 @@ function Stage1({
       }
       const mouth = { x: baby.x, y: baby.y + 30 }
       const open = elapsed % 3.4 < 2.5
-      const closeEnough = dist(s.feeder, mouth) < 72
-      const safeZone = dist(s.feeder, mouth) < 96
+      const guidedNearBaby = s.target.y < h * 0.72 && Math.abs(s.target.x - baby.x) < w * 0.42
+      const closeEnough = dist(s.feeder, mouth) < 150 || guidedNearBaby
+      const safeZone = dist(s.feeder, mouth) < 185 || guidedNearBaby
 
-      if (open && closeEnough && now > s.stunUntil) {
+      if (closeEnough && now > s.stunUntil) {
         s.hold += dt
-        if (s.hold > 0.78) {
+        if (s.hold > 0.18) {
           s.feeds += 1
           s.hold = 0
           setWife((value) => clamp(value + 8, 0, 100))
-          setToast(s.feeds >= 5 ? 'البيبي شبع وانفتح الطريق 🎉' : `رضعة ممتازة ${s.feeds}/5`)
-          if (s.feeds >= 5 && !s.done) {
+          setToast(s.feeds >= 2 ? 'البيبي شبع وانفتح الطريق 🎉' : `رضعة ممتازة ${s.feeds}/2`)
+          if (s.feeds >= 2 && !s.done) {
             s.done = true
             onWin(Math.max(0, Math.round(1000 - s.misses * 25 - elapsed * 3)))
             return
           }
         }
-      } else if (s.hold > 0 && (!safeZone || !open)) {
+      } else if (s.hold > 0 && !safeZone) {
         s.hold = 0
         s.misses += 1
         setWife((value) => clamp(value - 3, 0, 100))
-        setToast(open ? 'قرب شوي بس لا تغطي البيبي 😅' : 'البيبي سكر فمه، نطر اللحظة')
-        if (s.misses % 5 === 0) {
+        setToast('قرب شوي بس لا تغطي البيبي 😅')
+        if (s.misses % 7 === 0) {
           s.hearts -= 1
           if (s.hearts <= 0) {
             onFail('FAIL_1')
@@ -213,7 +234,7 @@ function Stage1({
         }
       }
 
-      if (!s.swatUntil && closeEnough && Math.random() < 0.004) {
+      if (!s.swatUntil && closeEnough && Math.random() < 0.002) {
         s.swatUntil = now + 650
         s.swatX = baby.x + (Math.random() > 0.5 ? -70 : 70)
       }
@@ -237,13 +258,16 @@ function Stage1({
       ctx.fillStyle = 'rgba(23,95,120,.09)'
       for (let x = -30; x < w + 30; x += 34) ctx.fillRect(x + ((elapsed * 8) % 34), 0, 3, h)
 
-      ctx.save()
-      ctx.globalAlpha = 0.58
       const photo = photoRef.current
-      const photoW = clamp(w * 0.22, 84, 118)
+      const photoW = clamp(w * 0.2, 78, 108)
       const photoH = photoW * 1.25
-      const photoX = s.feeder.x - photoW / 2
-      const photoY = s.feeder.y - photoH * 0.72
+      const photoX = clamp(s.feeder.x - photoW * 0.5, 8, w - photoW - 8)
+      const photoY = clamp(s.feeder.y + 30, h * 0.42, h - photoH - 16)
+      const shoulder = { x: photoX + photoW * 0.52, y: photoY + photoH * 0.4 }
+      const hand = { x: s.feeder.x - 18, y: s.feeder.y + 18 }
+
+      ctx.save()
+      ctx.globalAlpha = 0.48
       ctx.beginPath()
       ctx.roundRect(photoX, photoY, photoW, photoH, 20)
       ctx.clip()
@@ -268,19 +292,57 @@ function Stage1({
       ctx.arc(mouth.x, mouth.y, 44, 0, Math.PI * 2)
       ctx.stroke()
 
+      ctx.save()
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.shadowColor = 'rgba(120,80,35,.25)'
+      ctx.shadowBlur = 8
+      ctx.strokeStyle = '#f6f0df'
+      ctx.lineWidth = 28
+      ctx.beginPath()
+      ctx.moveTo(shoulder.x, shoulder.y)
+      ctx.quadraticCurveTo((shoulder.x + hand.x) / 2 + 34, (shoulder.y + hand.y) / 2, hand.x, hand.y)
+      ctx.stroke()
+      ctx.strokeStyle = '#d2c5aa'
+      ctx.lineWidth = 3
+      ctx.stroke()
+      ctx.shadowBlur = 0
+      ctx.strokeStyle = '#f0c28f'
+      ctx.lineWidth = 13
+      ctx.beginPath()
+      ctx.moveTo(shoulder.x, shoulder.y)
+      ctx.quadraticCurveTo((shoulder.x + hand.x) / 2 + 34, (shoulder.y + hand.y) / 2, hand.x, hand.y)
+      ctx.stroke()
+      ctx.fillStyle = '#f2c58f'
+      ctx.beginPath()
+      ctx.ellipse(hand.x, hand.y, 17, 13, -0.4, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.strokeStyle = '#bd875b'
+      ctx.lineWidth = 2
+      for (let i = -1; i <= 1; i += 1) {
+        ctx.beginPath()
+        ctx.moveTo(hand.x + i * 7, hand.y + 1)
+        ctx.lineTo(hand.x + i * 8 + 5, hand.y + 12)
+        ctx.stroke()
+      }
+      ctx.restore()
+
+      ctx.save()
+      ctx.translate(s.feeder.x, s.feeder.y)
+      ctx.rotate(-0.28)
+      drawEmoji(ctx, '🍼', 0, 0, 42)
+      ctx.restore()
+
       const active = open && safeZone
       ctx.fillStyle = active ? '#fff7d8' : '#ffffff'
       ctx.strokeStyle = active ? '#30a46c' : '#175f78'
-      ctx.lineWidth = 4
+      ctx.lineWidth = 3
+      ctx.globalAlpha = 0.76
       ctx.beginPath()
-      ctx.ellipse(s.feeder.x, s.feeder.y, 24, 17, 0, 0, Math.PI * 2)
+      ctx.ellipse(s.feeder.x, s.feeder.y, 18, 13, 0, 0, Math.PI * 2)
       ctx.fill()
       ctx.stroke()
-      ctx.fillStyle = active ? '#30a46c' : '#175f78'
-      ctx.font = '900 12px Cairo, sans-serif'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(active ? 'يفتح' : 'هدف', s.feeder.x, s.feeder.y)
+      ctx.globalAlpha = 1
 
       ctx.strokeStyle = 'rgba(23,95,120,.34)'
       ctx.setLineDash([6, 7])
@@ -295,14 +357,14 @@ function Stage1({
         ctx.strokeStyle = '#175f78'
         ctx.lineWidth = 7
         ctx.beginPath()
-        ctx.arc(mouth.x, mouth.y, 56, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (s.hold / 0.78))
+        ctx.arc(mouth.x, mouth.y, 56, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (s.hold / 0.18))
         ctx.stroke()
       }
       if (s.swatUntil) drawEmoji(ctx, '✋', s.swatX, baby.y + 16, 38)
 
       ctx.fillStyle = '#14333d'
       ctx.font = '900 22px Cairo, sans-serif'
-      ctx.fillText(`${s.feeds}/5`, w / 2, h - 24)
+      ctx.fillText(`${s.feeds}/2`, w / 2, h - 24)
       setHud({ stage: 1, hearts: s.hearts, wife, mood: s.hold > 0.25 ? 'jump' : undefined })
       frame = requestAnimationFrame(loop)
     }
@@ -330,12 +392,32 @@ function Stage1({
           move(event.clientX, event.clientY)
         }}
         onPointerMove={(event) => move(event.clientX, event.clientY)}
+        onMouseDown={(event) => move(event.clientX, event.clientY)}
+        onMouseMove={(event) => {
+          if (event.buttons) move(event.clientX, event.clientY)
+        }}
+        onTouchStart={(event) => {
+          const touch = event.touches[0]
+          if (touch) move(touch.clientX, touch.clientY)
+        }}
+        onTouchMove={(event) => {
+          event.preventDefault()
+          const touch = event.touches[0]
+          if (touch) move(touch.clientX, touch.clientY)
+        }}
       />
     </StageShell>
   )
 }
 
-type Dish = { id: number; x: number; y: number; speed: number; kind: 'dish' | 'glass' | 'bottle' | 'mess'; spin: number }
+type Dish = {
+  id: number
+  x: number
+  y: number
+  speed: number
+  kind: 'dish' | 'glass' | 'bottle' | 'mess' | 'gamepad' | 'bomb' | 'trap'
+  spin: number
+}
 
 function Stage2({
   wife,
@@ -351,7 +433,7 @@ function Stage2({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   useCanvas(canvasRef)
   const [hud, setHud] = useState<HudState>({ stage: 2, hearts: 3, wife })
-  const [toast, setToast] = useState('اسحب السفنجة ونظّف كل شي، تجنّب الفوضى السودا')
+  const [toast, setToast] = useState('اسحب تحت الممسحة، نظّف الصحون وتفادى فخاخ الفيديو قيمز')
   const state = useRef({
     start: 0,
     last: 0,
@@ -396,9 +478,22 @@ function Stage2({
       s.spawn -= dt
       if (s.spawn <= 0) {
         const roll = Math.random()
-        const kind: Dish['kind'] = roll < 0.48 ? 'dish' : roll < 0.7 ? 'glass' : roll < 0.9 ? 'bottle' : 'mess'
+        const kind: Dish['kind'] =
+          roll < 0.38
+            ? 'dish'
+            : roll < 0.56
+              ? 'glass'
+              : roll < 0.72
+                ? 'bottle'
+                : roll < 0.82
+                  ? 'gamepad'
+                  : roll < 0.91
+                    ? 'bomb'
+                    : roll < 0.97
+                      ? 'trap'
+                      : 'mess'
         s.items.push({ id: s.nextId++, kind, x: rand(34, w - 34), y: -40, speed: rand(95, 170), spin: rand(0, Math.PI * 2) })
-        s.spawn = rand(0.28, 0.58)
+        s.spawn = rand(0.22, 0.46)
       }
 
       s.items.forEach((item) => {
@@ -406,11 +501,11 @@ function Stage2({
         item.spin += dt * 4
       })
       s.items = s.items.filter((item) => {
-        if (dist(item, s.sponge) < 48) {
-          if (item.kind === 'mess') {
+        if (dist(item, s.sponge) < (item.kind === 'dish' || item.kind === 'glass' || item.kind === 'bottle' ? 34 : 42)) {
+          if (item.kind === 'mess' || item.kind === 'gamepad' || item.kind === 'bomb' || item.kind === 'trap') {
             s.hearts -= 1
             setWife((value) => clamp(value - 8, 0, 100))
-            setToast('لا تنظف الفوضى السودا! نقص قلب 😵')
+            setToast(item.kind === 'gamepad' ? 'جنجفة! لا تلمس الكنترول 🎮' : item.kind === 'bomb' ? 'بوم! فخ فيديو قيمز 💣' : 'فخ! نقص قلب 😵')
             if (s.hearts <= 0) onFail('FAIL_2')
           } else {
             s.cleaned += 1
@@ -421,7 +516,7 @@ function Stage2({
           return false
         }
         if (item.y > h + 44) {
-          if (item.kind !== 'mess') {
+          if (item.kind === 'dish' || item.kind === 'glass' || item.kind === 'bottle') {
             s.missed += 1
             if (s.missed % 4 === 0) {
               s.hearts -= 1
@@ -451,14 +546,34 @@ function Stage2({
       ctx.fillText(`الوقت ${Math.ceil(timeLeft)}`, w / 2, h - 16)
 
       s.items.forEach((item) => {
-        const emoji = item.kind === 'dish' ? '🍽️' : item.kind === 'glass' ? '🥛' : item.kind === 'bottle' ? '🍼' : '🕳️'
-        drawEmoji(ctx, emoji, item.x, item.y, item.kind === 'mess' ? 34 : 42)
+        const emoji =
+          item.kind === 'dish'
+            ? '🍽️'
+            : item.kind === 'glass'
+              ? '🥛'
+              : item.kind === 'bottle'
+                ? '🍼'
+                : item.kind === 'gamepad'
+                  ? '🎮'
+                  : item.kind === 'bomb'
+                    ? '💣'
+                    : item.kind === 'trap'
+                      ? '🪤'
+                      : '🕳️'
+        drawEmoji(ctx, emoji, item.x, item.y, item.kind === 'dish' || item.kind === 'glass' || item.kind === 'bottle' ? 38 : 42)
       })
-      ctx.fillStyle = 'rgba(48,164,108,.18)'
+      ctx.fillStyle = 'rgba(48,164,108,.16)'
       ctx.beginPath()
-      ctx.arc(s.sponge.x, s.sponge.y, 58, 0, Math.PI * 2)
+      ctx.arc(s.sponge.x, s.sponge.y, 36, 0, Math.PI * 2)
       ctx.fill()
-      drawEmoji(ctx, '🧽', s.sponge.x, s.sponge.y, 64)
+      drawEmoji(ctx, '🧽', s.sponge.x, s.sponge.y, 42)
+      ctx.strokeStyle = 'rgba(23,95,120,.34)'
+      ctx.setLineDash([6, 7])
+      ctx.beginPath()
+      ctx.moveTo(s.sponge.x, s.sponge.y)
+      ctx.lineTo(s.sponge.x, s.sponge.y + 74)
+      ctx.stroke()
+      ctx.setLineDash([])
       setHud({ stage: 2, hearts: s.hearts, wife, mood: s.cleaned % 6 === 0 && s.cleaned > 0 ? 'jump' : undefined })
       frame = requestAnimationFrame(loop)
     }
@@ -472,7 +587,7 @@ function Stage2({
     const box = canvas.getBoundingClientRect()
     state.current.target = {
       x: clamp(clientX - box.left, 34, box.width - 34),
-      y: clamp(clientY - box.top, 80, box.height - 70),
+      y: clamp(clientY - box.top - 74, 80, box.height - 70),
     }
   }
 
@@ -486,12 +601,25 @@ function Stage2({
           move(event.clientX, event.clientY)
         }}
         onPointerMove={(event) => move(event.clientX, event.clientY)}
+        onMouseDown={(event) => move(event.clientX, event.clientY)}
+        onMouseMove={(event) => {
+          if (event.buttons) move(event.clientX, event.clientY)
+        }}
+        onTouchStart={(event) => {
+          const touch = event.touches[0]
+          if (touch) move(touch.clientX, touch.clientY)
+        }}
+        onTouchMove={(event) => {
+          event.preventDefault()
+          const touch = event.touches[0]
+          if (touch) move(touch.clientX, touch.clientY)
+        }}
       />
     </StageShell>
   )
 }
 
-type RunnerThing = { id: number; x: number; y: number; speed: number; kind: 'wife' | 'mother' | 'key' | 'food'; size: number }
+type RunnerThing = { id: number; x: number; y: number; speed: number; kind: 'wife' | 'key' | 'burger'; size: number }
 
 function Stage3({
   wife,
@@ -503,9 +631,10 @@ function Stage3({
   onFail: (kind: FailKind) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const photoRef = useRef<HTMLImageElement | null>(null)
   useCanvas(canvasRef)
   const [hud, setHud] = useState<HudState>({ stage: 3, hearts: 3, wife })
-  const [toast, setToast] = useState('اسحب بو رضّاعة، تهرّب من التفتيش واجمع المفاتيح')
+  const [toast, setToast] = useState('اسحب الوجه، تفادى الزوجة والهمبرجر واجمع المفاتيح')
   const state = useRef({
     start: 0,
     last: 0,
@@ -514,11 +643,19 @@ function Stage3({
     hearts: 3,
     score: 0,
     freeze: 0,
+    faceScale: 1,
+    combo: 0,
     player: { x: 88, y: 380 },
     target: { x: 88, y: 380 },
     things: [] as RunnerThing[],
     done: false,
   })
+
+  useEffect(() => {
+    const image = new Image()
+    image.src = PHOTO_SRC
+    photoRef.current = image
+  }, [])
 
   useEffect(() => {
     let frame = 0
@@ -546,38 +683,45 @@ function Stage3({
 
       s.player.x += (s.target.x - s.player.x) * (1 - Math.pow(0.002, dt))
       s.player.y += (s.target.y - s.player.y) * (1 - Math.pow(0.002, dt))
+      s.faceScale += (1 - s.faceScale) * (1 - Math.pow(0.18, dt))
       s.spawn -= dt
       if (s.spawn <= 0) {
         const roll = Math.random()
-        const kind: RunnerThing['kind'] = roll < 0.52 ? 'wife' : roll < 0.72 ? 'mother' : roll < 0.86 ? 'key' : 'food'
+        const kind: RunnerThing['kind'] = roll < 0.52 ? 'wife' : roll < 0.72 ? 'burger' : 'key'
         const scary = wife < 40 ? 40 : wife > 65 ? -20 : 0
         s.things.push({
           id: s.nextId++,
           kind,
           x: w + 50,
           y: rand(82, h - 72),
-          speed: kind === 'key' || kind === 'food' ? rand(120, 160) : rand(150 + scary, 220 + scary),
-          size: kind === 'mother' ? 46 : 42,
+          speed: kind === 'key' ? rand(118, 158) : kind === 'burger' ? rand(132, 180) : rand(150 + scary, 220 + scary),
+          size: kind === 'wife' ? 44 : kind === 'burger' ? 38 : 34,
         })
-        s.spawn = rand(0.45, 0.78)
+        s.spawn = rand(0.42, 0.72)
       }
 
       const frozen = now < s.freeze
       s.things.forEach((thing) => {
-        thing.x -= thing.speed * dt * (frozen && (thing.kind === 'wife' || thing.kind === 'mother') ? 0.25 : 1)
+        thing.x -= thing.speed * dt * (frozen && thing.kind === 'wife' ? 0.25 : 1)
       })
       s.things = s.things.filter((thing) => {
-        if (dist(thing, s.player) < thing.size) {
+        const faceRadius = 28 * s.faceScale
+        if (dist(thing, s.player) < thing.size * 0.7 + faceRadius) {
           if (thing.kind === 'key') {
             s.freeze = now + 3500
             s.score += 250
+            s.combo += 1
+            s.faceScale = Math.max(0.82, s.faceScale - 0.08)
             setToast('مفتاح! التفتيش بطّأ شوي 🗝️')
-          } else if (thing.kind === 'food') {
-            s.score += 120
-            setToast('لقمة قبل الطلعة 🍔')
-          } else {
+          } else if (thing.kind === 'burger') {
+            s.faceScale = clamp(s.faceScale + 0.38, 1, 2.1)
+            s.score = Math.max(0, s.score - 90)
+            setToast('الهمبرجر كبّر الوجه! تفاداه 🍔')
+          } else if (thing.kind === 'wife') {
             s.hearts -= 1
-            setToast(thing.kind === 'wife' ? 'الزوجة شافتك!' : 'أم الزوجة قفطتك!')
+            s.combo = 0
+            s.faceScale = clamp(s.faceScale + 0.18, 1, 2.1)
+            setToast('الزوجة شافتك!')
             if (s.hearts <= 0) onFail('FAIL_3')
           }
           return false
@@ -604,9 +748,12 @@ function Stage3({
       ctx.font = '900 18px Cairo, sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText(`وصل الديوانية بعد ${Math.ceil(timeLeft)}`, w / 2, 32)
+      ctx.fillStyle = '#175f78'
+      ctx.font = '900 13px Cairo, sans-serif'
+      ctx.fillText(`مفاتيح ${s.combo}`, w / 2, 56)
 
       s.things.forEach((thing) => {
-        const emoji = thing.kind === 'wife' ? (wife < 35 ? '👹' : '👸') : thing.kind === 'mother' ? '👵' : thing.kind === 'key' ? '🗝️' : '🍔'
+        const emoji = thing.kind === 'wife' ? (wife < 35 ? '👹' : '👸') : thing.kind === 'key' ? '🗝️' : '🍔'
         drawEmoji(ctx, emoji, thing.x, thing.y, thing.size)
       })
       if (frozen) {
@@ -617,9 +764,9 @@ function Stage3({
       }
       ctx.fillStyle = 'rgba(245,166,35,.22)'
       ctx.beginPath()
-      ctx.arc(s.player.x, s.player.y, 46, 0, Math.PI * 2)
+      ctx.arc(s.player.x, s.player.y, 42 * s.faceScale, 0, Math.PI * 2)
       ctx.fill()
-      drawEmoji(ctx, '🧔', s.player.x, s.player.y, 56)
+      drawFace(ctx, photoRef.current, s.player.x, s.player.y, 28 * s.faceScale)
       setHud({ stage: 3, hearts: s.hearts, wife, mood: s.hearts < 3 ? 'shake' : undefined })
       frame = requestAnimationFrame(loop)
     }
@@ -647,6 +794,19 @@ function Stage3({
           move(event.clientX, event.clientY)
         }}
         onPointerMove={(event) => move(event.clientX, event.clientY)}
+        onMouseDown={(event) => move(event.clientX, event.clientY)}
+        onMouseMove={(event) => {
+          if (event.buttons) move(event.clientX, event.clientY)
+        }}
+        onTouchStart={(event) => {
+          const touch = event.touches[0]
+          if (touch) move(touch.clientX, touch.clientY)
+        }}
+        onTouchMove={(event) => {
+          event.preventDefault()
+          const touch = event.touches[0]
+          if (touch) move(touch.clientX, touch.clientY)
+        }}
       />
     </StageShell>
   )
@@ -863,8 +1023,8 @@ function App() {
           <h1>ثلاث ألعاب أسرع وأوضح</h1>
           <ul className="howto-list">
             <li>حرّك الصورة بسلاسة وخلي الهدف عند فم البيبي 👶</li>
-            <li>اسحب السفنجة ونظّف الصحون قبل لا تطوفك 🧽</li>
-            <li>اسحب بو رضّاعة واهرب من التفتيش للديوانية 🏃</li>
+            <li>اسحب تحت الممسحة ونظّف الصحون وتفادى فخاخ الفيديو قيمز 🧽</li>
+            <li>اسحب الوجه واهرب من الزوجة والهمبرجر للديوانية 🏃</li>
           </ul>
           <button type="button" onClick={() => setScreen('stage1')}>كمّل</button>
         </section>
