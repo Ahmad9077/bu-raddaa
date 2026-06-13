@@ -151,19 +151,19 @@ function Stage1({
   const photoRef = useRef<HTMLImageElement | null>(null)
   useCanvas(canvasRef)
   const [hud, setHud] = useState<HudState>({ stage: 1, hearts: 3, wife })
-  const [toast, setToast] = useState('حرّك الصورة، اليد والرضّاعة فوق إصبعك بشوي')
+  const [toast, setToast] = useState('حرّك المضرب واضرب الرضاعة لفم البيبي')
   const state = useRef({
     start: 0,
     last: 0,
     hearts: 3,
     feeds: 0,
+    hits: 0,
     misses: 0,
-    hold: 0,
-    target: { x: 88, y: 430 },
-    feeder: { x: 88, y: 430 },
-    stunUntil: 0,
-    swatUntil: 0,
-    swatX: 0,
+    paddleX: 190,
+    targetX: 190,
+    fingerX: 190,
+    bottle: { x: 190, y: 260, vx: 90, vy: 230, spin: 0 },
+    pauseUntil: 0,
     done: false,
   })
 
@@ -190,222 +190,193 @@ function Stage1({
       const dt = Math.min((now - (s.last || now)) / 1000, 0.04)
       s.last = now
       const elapsed = (now - s.start) / 1000
-
-      if (now > s.stunUntil) {
-        const smooth = 1 - Math.pow(0.004, dt)
-        s.feeder.x += (s.target.x - s.feeder.x) * smooth
-        s.feeder.y += (s.target.y - s.feeder.y) * smooth
-      }
-
+      const paddleW = clamp(w * 0.36, 112, 152)
+      const paddleY = h - 92
       const baby = {
-        x: w * 0.5 + Math.sin(elapsed * 1.7) * Math.min(30, w * 0.08),
-        y: h * 0.31 + Math.sin(elapsed * 2.3) * 15,
+        x: w * 0.5 + Math.sin(elapsed * 1.15) * Math.min(58, w * 0.15),
+        y: h * 0.16,
       }
-      const mouth = { x: baby.x, y: baby.y + 30 }
-      const open = elapsed % 3 < 1.35
-      const closeEnough = dist(s.feeder, mouth) < 54
-      const safeZone = dist(s.feeder, mouth) < 86
+      const mouth = { x: baby.x, y: baby.y + 42 }
+      const bottle = s.bottle
+      const resetBottle = (direction: 1 | -1) => {
+        bottle.x = direction < 0 ? s.paddleX : w * 0.5
+        bottle.y = direction < 0 ? paddleY - 68 : h * 0.42
+        bottle.vx = rand(-90, 90)
+        bottle.vy = direction * rand(210, 255)
+        bottle.spin = 0
+        s.pauseUntil = now + 280
+      }
 
-      if (open && closeEnough && now > s.stunUntil) {
-        s.hold += dt
-        if (s.hold > 0.48) {
+      s.paddleX += (s.targetX - s.paddleX) * (1 - Math.pow(0.001, dt))
+      if (now > s.pauseUntil) {
+        bottle.x += bottle.vx * dt
+        bottle.y += bottle.vy * dt
+        bottle.spin += dt * (bottle.vx > 0 ? 5 : -5)
+
+        if (bottle.x < 28) {
+          bottle.x = 28
+          bottle.vx = Math.abs(bottle.vx)
+        } else if (bottle.x > w - 28) {
+          bottle.x = w - 28
+          bottle.vx = -Math.abs(bottle.vx)
+        }
+
+        if (bottle.vy > 0 && bottle.y > paddleY - 25 && bottle.y < paddleY + 14 && Math.abs(bottle.x - s.paddleX) < paddleW / 2 + 18) {
+          const offset = (bottle.x - s.paddleX) / (paddleW / 2)
+          bottle.y = paddleY - 27
+          bottle.vy = -Math.min(365, Math.abs(bottle.vy) * 1.04 + 18)
+          bottle.vx = clamp(bottle.vx + offset * 170, -260, 260)
+          s.hits += 1
+          setToast(s.hits % 3 === 0 ? 'ضربة حلوة! وجّهها لفم البيبي' : 'ردّ الرضاعة!')
+        }
+
+        if (bottle.vy < 0 && bottle.y < mouth.y + 18) {
+          if (Math.abs(bottle.x - mouth.x) < 58) {
           s.feeds += 1
-          s.hold = 0
           setWife((value) => clamp(value + 8, 0, 100))
           setToast(s.feeds >= 5 ? 'البيبي شبع وانفتح الطريق 🎉' : `رضعة ممتازة ${s.feeds}/5`)
           if (s.feeds >= 5 && !s.done) {
             s.done = true
-            onWin(Math.max(0, Math.round(1000 - s.misses * 25 - elapsed * 3)))
+              onWin(Math.max(0, Math.round(1200 + s.hits * 35 - s.misses * 70 - elapsed * 4)))
             return
           }
+            resetBottle(1)
+          } else if (bottle.y < 38) {
+            bottle.y = 38
+            bottle.vy = Math.abs(bottle.vy) * 0.94
+            bottle.vx += clamp((bottle.x - mouth.x) * 0.45, -70, 70)
+            setToast('قربها صوب فم البيبي مو فوق راسه 😅')
+          }
         }
-      } else if (s.hold > 0 && !open) {
-        s.hold = 0
-        setToast('نطر فم البيبي يفتح 😮')
-      } else if (s.hold > 0 && !safeZone) {
-        s.hold = 0
-        s.misses += 1
-        setWife((value) => clamp(value - 3, 0, 100))
-        setToast('قرب شوي بس لا تغطي البيبي 😅')
-        if (s.misses % 5 === 0) {
+
+        if (bottle.y > h + 30) {
+          s.misses += 1
           s.hearts -= 1
+          setWife((value) => clamp(value - 6, 0, 100))
           if (s.hearts <= 0) {
             onFail('FAIL_1')
             return
           }
+          setToast('طاحت الرضاعة! ردها بالمضرب')
+          resetBottle(-1)
         }
-      }
-
-      if (!s.swatUntil && closeEnough && Math.random() < 0.003) {
-        s.swatUntil = now + 650
-        s.swatX = baby.x + (Math.random() > 0.5 ? -70 : 70)
-      }
-      if (s.swatUntil && now < s.swatUntil) {
-        s.swatX += (baby.x - s.swatX) * 0.18
-        if (dist({ x: s.swatX, y: baby.y + 16 }, s.feeder) < 45) {
-          s.stunUntil = now + 450
-          s.target = { x: w - 70, y: h - 110 }
-          s.feeder = { ...s.target }
-          s.swatUntil = 0
-          s.misses += 1
-          setToast('كف البيبي ردّك ورا ✋')
-        }
-      } else if (s.swatUntil) {
-        s.swatUntil = 0
       }
 
       ctx.clearRect(0, 0, w, h)
-      ctx.fillStyle = '#f7fbf7'
+      ctx.fillStyle = '#f6fbff'
       ctx.fillRect(0, 0, w, h)
-      ctx.fillStyle = 'rgba(23,95,120,.09)'
-      for (let x = -30; x < w + 30; x += 34) ctx.fillRect(x + ((elapsed * 8) % 34), 0, 3, h)
+      ctx.fillStyle = 'rgba(23,95,120,.08)'
+      for (let y = 70; y < h; y += 58) ctx.fillRect(0, y, w, 3)
+      ctx.strokeStyle = 'rgba(23,95,120,.16)'
+      ctx.lineWidth = 4
+      ctx.setLineDash([12, 12])
+      ctx.beginPath()
+      ctx.moveTo(0, h * 0.5)
+      ctx.lineTo(w, h * 0.5)
+      ctx.stroke()
+      ctx.setLineDash([])
 
       const photo = photoRef.current
-      const photoW = clamp(w * 0.2, 78, 108)
+      const photoW = clamp(w * 0.16, 62, 82)
       const photoH = photoW * 1.25
-      const photoX = clamp(s.feeder.x - photoW * 0.5, 8, w - photoW - 8)
-      const photoY = clamp(s.feeder.y + 30, h * 0.42, h - photoH - 16)
-      const shoulder = { x: photoX + photoW * 0.52, y: photoY + photoH * 0.4 }
-      const hand = { x: s.feeder.x - 18, y: s.feeder.y + 18 }
+      const photoX = clamp(s.paddleX - photoW * 0.5, 8, w - photoW - 8)
+      const photoY = clamp(paddleY + 10, h * 0.52, h - photoH - 8)
 
       ctx.save()
-      ctx.globalAlpha = 0.48
+      ctx.globalAlpha = 0.42
       ctx.beginPath()
-      ctx.roundRect(photoX, photoY, photoW, photoH, 20)
+      ctx.roundRect(photoX, photoY, photoW, photoH, 14)
       ctx.clip()
       if (photo?.complete && photo.naturalWidth > 0) ctx.drawImage(photo, photoX, photoY, photoW, photoH)
       else {
         ctx.fillStyle = '#fff0c8'
         ctx.fillRect(photoX, photoY, photoW, photoH)
-        drawEmoji(ctx, '🧔', s.feeder.x, photoY + photoH * 0.45, photoW * 0.45)
+        drawEmoji(ctx, '🧔', s.paddleX, photoY + photoH * 0.45, photoW * 0.45)
       }
       ctx.restore()
 
-      ctx.fillStyle = 'rgba(48,164,108,.16)'
+      ctx.fillStyle = 'rgba(48,164,108,.14)'
       ctx.beginPath()
-      ctx.arc(baby.x, baby.y + 8, Math.min(76, w * 0.18), 0, Math.PI * 2)
+      ctx.arc(baby.x, baby.y + 18, Math.min(74, w * 0.18), 0, Math.PI * 2)
       ctx.fill()
-      drawEmoji(ctx, '👶', baby.x, baby.y, Math.min(108, w * 0.25))
-      drawEmoji(ctx, open ? '😮' : '😐', mouth.x, mouth.y, 30)
-
-      ctx.lineWidth = 5
-      ctx.strokeStyle = open ? '#30a46c' : '#e5484d'
+      drawEmoji(ctx, '👶', baby.x, baby.y, Math.min(96, w * 0.23))
+      ctx.strokeStyle = '#30a46c'
+      ctx.lineWidth = 6
       ctx.beginPath()
-      ctx.arc(mouth.x, mouth.y, 44, 0, Math.PI * 2)
+      ctx.arc(mouth.x, mouth.y, 58, 0, Math.PI * 2)
       ctx.stroke()
+      drawEmoji(ctx, '😮', mouth.x, mouth.y, 30)
 
       ctx.save()
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-      ctx.shadowColor = 'rgba(120,80,35,.25)'
-      ctx.shadowBlur = 8
-      ctx.strokeStyle = '#f6f0df'
-      ctx.lineWidth = 28
+      ctx.shadowColor = 'rgba(23,51,61,.18)'
+      ctx.shadowBlur = 12
+      ctx.fillStyle = '#175f78'
       ctx.beginPath()
-      ctx.moveTo(shoulder.x, shoulder.y)
-      ctx.quadraticCurveTo((shoulder.x + hand.x) / 2 + 34, (shoulder.y + hand.y) / 2, hand.x, hand.y)
-      ctx.stroke()
-      ctx.strokeStyle = '#d2c5aa'
-      ctx.lineWidth = 3
-      ctx.stroke()
-      ctx.shadowBlur = 0
-      ctx.strokeStyle = '#f0c28f'
-      ctx.lineWidth = 13
-      ctx.beginPath()
-      ctx.moveTo(shoulder.x, shoulder.y)
-      ctx.quadraticCurveTo((shoulder.x + hand.x) / 2 + 34, (shoulder.y + hand.y) / 2, hand.x, hand.y)
-      ctx.stroke()
-      ctx.fillStyle = '#f2c58f'
-      ctx.beginPath()
-      ctx.ellipse(hand.x, hand.y, 17, 13, -0.4, 0, Math.PI * 2)
+      ctx.roundRect(s.paddleX - paddleW / 2, paddleY, paddleW, 18, 9)
       ctx.fill()
-      ctx.strokeStyle = '#bd875b'
-      ctx.lineWidth = 2
-      for (let i = -1; i <= 1; i += 1) {
-        ctx.beginPath()
-        ctx.moveTo(hand.x + i * 7, hand.y + 1)
-        ctx.lineTo(hand.x + i * 8 + 5, hand.y + 12)
-        ctx.stroke()
-      }
+      ctx.fillStyle = '#fff7d8'
+      ctx.beginPath()
+      ctx.roundRect(s.paddleX - paddleW * 0.34, paddleY + 4, paddleW * 0.68, 7, 5)
+      ctx.fill()
       ctx.restore()
 
       ctx.save()
-      ctx.translate(s.feeder.x, s.feeder.y)
-      ctx.rotate(-0.28)
-      drawEmoji(ctx, '🍼', 0, 0, 42)
+      ctx.translate(bottle.x, bottle.y)
+      ctx.rotate(bottle.spin)
+      drawEmoji(ctx, '🍼', 0, 0, 44)
       ctx.restore()
-
-      const active = open && safeZone
-      ctx.fillStyle = active ? '#fff7d8' : '#ffffff'
-      ctx.strokeStyle = active ? '#30a46c' : '#175f78'
-      ctx.lineWidth = 3
-      ctx.globalAlpha = 0.76
-      ctx.beginPath()
-      ctx.ellipse(s.feeder.x, s.feeder.y, 18, 13, 0, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.stroke()
-      ctx.globalAlpha = 1
 
       ctx.strokeStyle = 'rgba(23,95,120,.34)'
       ctx.setLineDash([6, 7])
       ctx.beginPath()
-      ctx.moveTo(s.feeder.x, s.feeder.y)
-      ctx.lineTo(s.feeder.x, s.feeder.y + 86)
+      ctx.moveTo(s.paddleX, paddleY + 8)
+      ctx.lineTo(s.fingerX, paddleY + 76)
       ctx.stroke()
       ctx.setLineDash([])
-      drawEmoji(ctx, '👇', s.feeder.x, s.feeder.y + 102, 22)
-
-      if (s.hold > 0) {
-        ctx.strokeStyle = '#175f78'
-        ctx.lineWidth = 7
-        ctx.beginPath()
-        ctx.arc(mouth.x, mouth.y, 56, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (s.hold / 0.48))
-        ctx.stroke()
-      }
-      if (s.swatUntil) drawEmoji(ctx, '✋', s.swatX, baby.y + 16, 38)
+      drawEmoji(ctx, '👇', s.fingerX, paddleY + 94, 22)
 
       ctx.fillStyle = '#14333d'
       ctx.font = '900 22px Cairo, sans-serif'
       ctx.fillText(`${s.feeds}/5`, w / 2, h - 24)
-      setHud({ stage: 1, hearts: s.hearts, wife, mood: s.hold > 0.25 ? 'jump' : undefined })
+      ctx.font = '900 14px Cairo, sans-serif'
+      ctx.fillText(`رالي ${s.hits}`, w / 2, h - 50)
+      setHud({ stage: 1, hearts: s.hearts, wife, mood: bottle.vy < 0 ? 'jump' : undefined })
       frame = requestAnimationFrame(loop)
     }
     frame = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(frame)
   }, [onFail, onWin, setWife, wife])
 
-  const move = (clientX: number, clientY: number) => {
+  const move = (clientX: number) => {
     const canvas = canvasRef.current
     if (!canvas) return
     const box = canvas.getBoundingClientRect()
-    state.current.target = {
-      x: clamp(clientX - box.left, 42, box.width - 42),
-      y: clamp(clientY - box.top - 86, 62, box.height - 48),
-    }
+    state.current.fingerX = clamp(clientX - box.left, 42, box.width - 42)
+    state.current.targetX = state.current.fingerX
   }
 
   return (
-    <StageShell hud={hud} title="قرّب بو رضّاعة للبيبي" toast={toast}>
+    <StageShell hud={hud} title="رضّاعة بونغ 🍼" toast={toast}>
       <canvas
         ref={canvasRef}
         className="stage-canvas"
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId)
-          move(event.clientX, event.clientY)
+          move(event.clientX)
         }}
-        onPointerMove={(event) => move(event.clientX, event.clientY)}
-        onMouseDown={(event) => move(event.clientX, event.clientY)}
+        onPointerMove={(event) => move(event.clientX)}
+        onMouseDown={(event) => move(event.clientX)}
         onMouseMove={(event) => {
-          if (event.buttons) move(event.clientX, event.clientY)
+          if (event.buttons) move(event.clientX)
         }}
         onTouchStart={(event) => {
           const touch = event.touches[0]
-          if (touch) move(touch.clientX, touch.clientY)
+          if (touch) move(touch.clientX)
         }}
         onTouchMove={(event) => {
           event.preventDefault()
           const touch = event.touches[0]
-          if (touch) move(touch.clientX, touch.clientY)
+          if (touch) move(touch.clientX)
         }}
       />
     </StageShell>
@@ -1148,7 +1119,7 @@ function App() {
           <p className="eyebrow">شلون ألعب؟</p>
           <h1>ثلاث ألعاب أسرع وأوضح</h1>
           <ul className="howto-list">
-            <li>حرّك الصورة بسلاسة وخلي الهدف عند فم البيبي 👶</li>
+            <li>حرّك المضرب وردّ الرضاعة صوب فم البيبي 🍼</li>
             <li>اضغط للقفز في مرحلة المنصات، اجمع الكنوز ووصل العلم 🏁</li>
             <li>اسحب الوجه واهرب من الزوجة والهمبرجر للديوانية 🏃</li>
           </ul>
