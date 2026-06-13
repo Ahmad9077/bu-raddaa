@@ -11,10 +11,11 @@ type HudState = { stage: number; hearts: number; wife: number; mood?: 'jump' | '
 type LeaderRow = { id?: string; name: string; score: number; rank?: number }
 
 const PHOTO_SRC = `${import.meta.env.BASE_URL}bo-raddaa.jpg`
+const PLAYER_STAGE1_SRC = `${import.meta.env.BASE_URL}player-stage1.jpg`
 const stageLabel = ['المرحلة ١ من ٣', 'المرحلة ٢ من ٣', 'المرحلة ٣ من ٣']
 const failText: Record<FailKind, string> = {
   FAIL_1: 'البيبي قال: لا تحاول مرة ثانية بهالطريقة 😭',
-  FAIL_2: 'المطبخ صار زلزال صحون 😱',
+  FAIL_2: 'الزوجة والطفل وقفوا طريقك 😱',
   FAIL_3: 'قفطوك قبل الديوانية… ارجع حاول بهدوء 🥲',
 }
 
@@ -169,7 +170,7 @@ function Stage1({
 
   useEffect(() => {
     const image = new Image()
-    image.src = PHOTO_SRC
+    image.src = PLAYER_STAGE1_SRC
     photoRef.current = image
   }, [])
 
@@ -193,10 +194,10 @@ function Stage1({
       const paddleW = clamp(w * 0.36, 112, 152)
       const paddleY = h - 92
       const baby = {
-        x: w * 0.5 + Math.sin(elapsed * 1.15) * Math.min(58, w * 0.15),
-        y: h * 0.16,
+        x: w * 0.5 + Math.sin(elapsed * 0.95) * Math.min(64, w * 0.16),
+        y: h * 0.1,
       }
-      const mouth = { x: baby.x, y: baby.y + 42 }
+      const mouth = { x: baby.x, y: baby.y + 34 }
       const bottle = s.bottle
       const resetBottle = (direction: 1 | -1) => {
         bottle.x = direction < 0 ? s.paddleX : w * 0.5
@@ -263,10 +264,14 @@ function Stage1({
       }
 
       ctx.clearRect(0, 0, w, h)
-      ctx.fillStyle = '#f6fbff'
+      const court = ctx.createLinearGradient(0, 0, 0, h)
+      court.addColorStop(0, '#e9f8ff')
+      court.addColorStop(0.52, '#f7fbf7')
+      court.addColorStop(1, '#fff4d4')
+      ctx.fillStyle = court
       ctx.fillRect(0, 0, w, h)
-      ctx.fillStyle = 'rgba(23,95,120,.08)'
-      for (let y = 70; y < h; y += 58) ctx.fillRect(0, y, w, 3)
+      ctx.fillStyle = 'rgba(23,95,120,.06)'
+      for (let y = 62; y < h; y += 48) ctx.fillRect(0, y, w, 3)
       ctx.strokeStyle = 'rgba(23,95,120,.16)'
       ctx.lineWidth = 4
       ctx.setLineDash([12, 12])
@@ -277,35 +282,41 @@ function Stage1({
       ctx.setLineDash([])
 
       const photo = photoRef.current
-      const photoW = clamp(w * 0.16, 62, 82)
-      const photoH = photoW * 1.25
+      const photoW = clamp(w * 0.3, 118, 162)
+      const photoH = photoW * 1.14
       const photoX = clamp(s.paddleX - photoW * 0.5, 8, w - photoW - 8)
-      const photoY = clamp(paddleY + 10, h * 0.52, h - photoH - 8)
+      const photoY = clamp(paddleY + 18, h * 0.5, h - photoH - 8)
 
       ctx.save()
-      ctx.globalAlpha = 0.42
+      ctx.shadowColor = 'rgba(23,51,61,.22)'
+      ctx.shadowBlur = 14
       ctx.beginPath()
-      ctx.roundRect(photoX, photoY, photoW, photoH, 14)
+      ctx.roundRect(photoX, photoY, photoW, photoH, 18)
       ctx.clip()
-      if (photo?.complete && photo.naturalWidth > 0) ctx.drawImage(photo, photoX, photoY, photoW, photoH)
+      if (photo?.complete && photo.naturalWidth > 0) ctx.drawImage(photo, 0, 0, photo.naturalWidth, photo.naturalHeight * 0.84, photoX, photoY, photoW, photoH)
       else {
         ctx.fillStyle = '#fff0c8'
         ctx.fillRect(photoX, photoY, photoW, photoH)
         drawEmoji(ctx, '🧔', s.paddleX, photoY + photoH * 0.45, photoW * 0.45)
       }
       ctx.restore()
-
-      ctx.fillStyle = 'rgba(48,164,108,.14)'
+      ctx.strokeStyle = '#175f78'
+      ctx.lineWidth = 4
       ctx.beginPath()
-      ctx.arc(baby.x, baby.y + 18, Math.min(74, w * 0.18), 0, Math.PI * 2)
-      ctx.fill()
-      drawEmoji(ctx, '👶', baby.x, baby.y, Math.min(96, w * 0.23))
-      ctx.strokeStyle = '#30a46c'
-      ctx.lineWidth = 6
-      ctx.beginPath()
-      ctx.arc(mouth.x, mouth.y, 58, 0, Math.PI * 2)
+      ctx.roundRect(photoX, photoY, photoW, photoH, 18)
       ctx.stroke()
-      drawEmoji(ctx, '😮', mouth.x, mouth.y, 30)
+
+      ctx.fillStyle = 'rgba(48,164,108,.12)'
+      ctx.beginPath()
+      ctx.arc(baby.x, baby.y + 15, Math.min(54, w * 0.14), 0, Math.PI * 2)
+      ctx.fill()
+      drawEmoji(ctx, '👶', baby.x, baby.y, Math.min(66, w * 0.17))
+      ctx.strokeStyle = '#30a46c'
+      ctx.lineWidth = 5
+      ctx.beginPath()
+      ctx.arc(mouth.x, mouth.y, 42, 0, Math.PI * 2)
+      ctx.stroke()
+      drawEmoji(ctx, '😮', mouth.x, mouth.y, 23)
 
       ctx.save()
       ctx.shadowColor = 'rgba(23,51,61,.18)'
@@ -384,7 +395,7 @@ function Stage1({
 }
 
 type PlatformBlock = { x: number; yOff: number; w: number; h: number; kind: 'ground' | 'brick' | 'pipe' }
-type PlatformCollectible = { id: number; x: number; yOff: number; kind: 'coin' | 'dish' | 'heart'; taken: boolean }
+type PlatformCollectible = { id: number; x: number; yOff: number; taken: boolean }
 type PlatformFoe = {
   id: number
   x: number
@@ -394,7 +405,7 @@ type PlatformFoe = {
   vx: number
   minX: number
   maxX: number
-  kind: 'gamepad' | 'glitch'
+  kind: 'wife' | 'baby'
   alive: boolean
 }
 
@@ -404,39 +415,43 @@ function rectsOverlap(a: { x: number; y: number; w: number; h: number }, b: { x:
 
 function createPlatformLevel() {
   return {
-    worldWidth: 2400,
+    worldWidth: 3600,
     platforms: [
       { x: 0, yOff: 0, w: 370, h: 34, kind: 'ground' },
       { x: 455, yOff: 0, w: 330, h: 34, kind: 'ground' },
       { x: 855, yOff: 0, w: 420, h: 34, kind: 'ground' },
       { x: 1375, yOff: 0, w: 350, h: 34, kind: 'ground' },
-      { x: 1800, yOff: 0, w: 600, h: 34, kind: 'ground' },
+      { x: 1800, yOff: 0, w: 420, h: 34, kind: 'ground' },
+      { x: 2310, yOff: 0, w: 360, h: 34, kind: 'ground' },
+      { x: 2750, yOff: 0, w: 310, h: 34, kind: 'ground' },
+      { x: 3160, yOff: 0, w: 440, h: 34, kind: 'ground' },
       { x: 210, yOff: 108, w: 130, h: 22, kind: 'brick' },
       { x: 575, yOff: 150, w: 130, h: 22, kind: 'brick' },
       { x: 970, yOff: 112, w: 170, h: 22, kind: 'brick' },
       { x: 1475, yOff: 154, w: 145, h: 22, kind: 'brick' },
       { x: 1945, yOff: 124, w: 135, h: 22, kind: 'brick' },
+      { x: 2395, yOff: 146, w: 150, h: 22, kind: 'brick' },
+      { x: 2860, yOff: 112, w: 140, h: 22, kind: 'brick' },
+      { x: 3285, yOff: 160, w: 150, h: 22, kind: 'brick' },
       { x: 1245, yOff: 58, w: 70, h: 58, kind: 'pipe' },
+      { x: 2668, yOff: 58, w: 70, h: 58, kind: 'pipe' },
     ] as PlatformBlock[],
     items: [
-      { id: 1, x: 252, yOff: 160, kind: 'coin', taken: false },
-      { id: 2, x: 310, yOff: 160, kind: 'dish', taken: false },
-      { id: 3, x: 612, yOff: 205, kind: 'coin', taken: false },
-      { id: 4, x: 670, yOff: 205, kind: 'dish', taken: false },
-      { id: 5, x: 1015, yOff: 165, kind: 'dish', taken: false },
-      { id: 6, x: 1090, yOff: 165, kind: 'coin', taken: false },
-      { id: 7, x: 1280, yOff: 110, kind: 'heart', taken: false },
-      { id: 8, x: 1515, yOff: 210, kind: 'coin', taken: false },
-      { id: 9, x: 1570, yOff: 210, kind: 'dish', taken: false },
-      { id: 10, x: 1990, yOff: 180, kind: 'coin', taken: false },
-      { id: 11, x: 2050, yOff: 180, kind: 'dish', taken: false },
-      { id: 12, x: 2250, yOff: 78, kind: 'coin', taken: false },
+      { id: 1, x: 620, yOff: 205, taken: false },
+      { id: 2, x: 1280, yOff: 110, taken: false },
+      { id: 3, x: 1978, yOff: 180, taken: false },
+      { id: 4, x: 2440, yOff: 202, taken: false },
+      { id: 5, x: 2900, yOff: 164, taken: false },
+      { id: 6, x: 3330, yOff: 218, taken: false },
     ] as PlatformCollectible[],
     foes: [
-      { id: 1, x: 560, yOff: 34, w: 36, h: 34, vx: 45, minX: 500, maxX: 720, kind: 'gamepad', alive: true },
-      { id: 2, x: 1040, yOff: 34, w: 36, h: 34, vx: -50, minX: 900, maxX: 1215, kind: 'glitch', alive: true },
-      { id: 3, x: 1530, yOff: 34, w: 36, h: 34, vx: 48, minX: 1415, maxX: 1680, kind: 'gamepad', alive: true },
-      { id: 4, x: 2050, yOff: 34, w: 36, h: 34, vx: -55, minX: 1850, maxX: 2290, kind: 'glitch', alive: true },
+      { id: 1, x: 560, yOff: 34, w: 38, h: 36, vx: 45, minX: 500, maxX: 720, kind: 'wife', alive: true },
+      { id: 2, x: 1040, yOff: 34, w: 36, h: 34, vx: -50, minX: 900, maxX: 1215, kind: 'baby', alive: true },
+      { id: 3, x: 1530, yOff: 34, w: 38, h: 36, vx: 48, minX: 1415, maxX: 1680, kind: 'wife', alive: true },
+      { id: 4, x: 2045, yOff: 34, w: 36, h: 34, vx: -52, minX: 1850, maxX: 2170, kind: 'baby', alive: true },
+      { id: 5, x: 2440, yOff: 34, w: 38, h: 36, vx: 48, minX: 2340, maxX: 2625, kind: 'wife', alive: true },
+      { id: 6, x: 2910, yOff: 34, w: 36, h: 34, vx: -55, minX: 2790, maxX: 3030, kind: 'baby', alive: true },
+      { id: 7, x: 3310, yOff: 34, w: 38, h: 36, vx: 52, minX: 3200, maxX: 3540, kind: 'wife', alive: true },
     ] as PlatformFoe[],
   }
 }
@@ -455,12 +470,12 @@ function Stage2({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   useCanvas(canvasRef)
   const [hud, setHud] = useState<HudState>({ stage: 2, hearts: 3, wife })
-  const [toast, setToast] = useState('اضغط للقفز، اجمع الصحون والعملات ووصل العلم')
+  const [toast, setToast] = useState('اضغط للقفز، تفادى الزوجة والطفل وخذ القلوب')
   const state = useRef({
     start: 0,
     last: 0,
     hearts: 3,
-    collected: 0,
+    heartsTaken: 0,
     score: 0,
     cameraX: 0,
     jumpQueued: false,
@@ -553,15 +568,10 @@ function Stage2({
         const itemRect = { x: item.x - 15, y: floorY - item.yOff - 15, w: 30, h: 30 }
         if (rectsOverlap(playerRect, itemRect)) {
           item.taken = true
-          s.collected += 1
-          s.score += item.kind === 'dish' ? 160 : item.kind === 'heart' ? 80 : 100
-          if (item.kind === 'heart') {
-            s.hearts = Math.min(3, s.hearts + 1)
-            setToast('قلب إضافي ❤️')
-          } else {
-            setWife((value) => clamp(value + 2, 0, 100))
-            setToast(item.kind === 'dish' ? 'صحن ذهبي!' : 'عملة!')
-          }
+          s.heartsTaken += 1
+          s.score += 120
+          s.hearts = Math.min(3, s.hearts + 1)
+          setToast('قلب إضافي ❤️')
         }
       }
 
@@ -579,9 +589,9 @@ function Stage2({
             player.vy = -360
             player.onGround = false
             s.score += 180
-            setToast('دعست الوحش!')
+            setToast(foe.kind === 'wife' ? 'قفزت فوق الزوجة!' : 'تفاديت الطفل!')
           } else {
-            hurt(foe.kind === 'gamepad' ? 'الكنترول لمس بو رضّاعة 🎮' : 'القلتچ صادك 🕹️')
+            hurt(foe.kind === 'wife' ? 'الزوجة مسكتك 👸' : 'الطفل صادك 👶')
           }
         }
       }
@@ -589,7 +599,7 @@ function Stage2({
 
       if (player.x >= level.worldWidth - 120 && !s.done) {
         s.done = true
-        onWin(Math.max(0, Math.round(1100 + s.score + s.collected * 90 + s.hearts * 160 - elapsed * 8)))
+        onWin(Math.max(0, Math.round(1300 + s.score + s.heartsTaken * 100 + s.hearts * 170 - elapsed * 5)))
         return
       }
 
@@ -642,17 +652,17 @@ function Stage2({
       ctx.fillStyle = '#14333d'
       ctx.font = '900 18px Cairo, sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText(`كنوز ${s.collected}/12`, w / 2, 30)
+      ctx.fillText(`قلوب ${s.heartsTaken}/6`, w / 2, 30)
       ctx.fillText(`المسافة ${Math.round((player.x / level.worldWidth) * 100)}%`, w / 2, 56)
 
       level.items.forEach((item) => {
         if (item.taken) return
-        drawEmoji(ctx, item.kind === 'dish' ? '🍽️' : item.kind === 'heart' ? '❤️' : '🪙', item.x - cam, floorY - item.yOff, item.kind === 'heart' ? 28 : 30)
+        drawEmoji(ctx, '❤️', item.x - cam, floorY - item.yOff, 30)
       })
 
       level.foes.forEach((foe) => {
         if (!foe.alive) return
-        drawEmoji(ctx, foe.kind === 'gamepad' ? '🎮' : '🕹️', foe.x + foe.w / 2 - cam, floorY - foe.yOff + foe.h / 2, 36)
+        drawEmoji(ctx, foe.kind === 'wife' ? '👸' : '👶', foe.x + foe.w / 2 - cam, floorY - foe.yOff + foe.h / 2, foe.kind === 'wife' ? 38 : 34)
       })
 
       ctx.save()
@@ -684,7 +694,7 @@ function Stage2({
   }
 
   return (
-    <StageShell hud={hud} title="مطبخ المنصات 🏁" toast={toast}>
+    <StageShell hud={hud} title="طريق المنصات 🏁" toast={toast}>
       <canvas
         ref={canvasRef}
         className="stage-canvas"
@@ -1120,7 +1130,7 @@ function App() {
           <h1>ثلاث ألعاب أسرع وأوضح</h1>
           <ul className="howto-list">
             <li>حرّك المضرب وردّ الرضاعة صوب فم البيبي 🍼</li>
-            <li>اضغط للقفز في مرحلة المنصات، اجمع الكنوز ووصل العلم 🏁</li>
+            <li>اضغط للقفز، تفادى الزوجة والطفل وخذ القلوب 🏁</li>
             <li>اسحب الوجه واهرب من الزوجة والهمبرجر للديوانية 🏃</li>
           </ul>
           <button type="button" onClick={() => setScreen('stage1')}>كمّل</button>
