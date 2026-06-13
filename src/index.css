@@ -12,6 +12,9 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 
 html {
@@ -24,6 +27,8 @@ body {
   min-height: 100svh;
   margin: 0;
   direction: rtl;
+  overscroll-behavior: none;
+  touch-action: manipulation;
 }
 
 #root {
