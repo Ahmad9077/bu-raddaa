@@ -893,7 +893,7 @@ function Stage3({
     }
     frame = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(frame)
-  }, [onFail, onWin, resetSnake, spawnTarget])
+  }, [onFail, onWin, resetSnake, spawnTarget, wife])
 
   const handlePointerStart = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current
