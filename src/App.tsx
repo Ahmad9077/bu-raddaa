@@ -10,6 +10,7 @@ type HudState = { stage: number; hearts: number; wife: number; mood?: 'jump' | '
 type LeaderRow = { id?: string; name: string; score: number; rank?: number }
 
 const PLAYER_STAGE1_SRC = `${import.meta.env.BASE_URL}player-stage1.jpg`
+const SNAKE_HEAD_SRC = `${import.meta.env.BASE_URL}snake-head.jpg`
 const stageLabel = ['المرحلة ١ من ٣', 'المرحلة ٢ من ٣', 'المرحلة ٣ من ٣']
 const failText: Record<FailKind, string> = {
   FAIL_1: 'البيبي قال: لا تحاول مرة ثانية بهالطريقة 😭',
@@ -27,6 +28,33 @@ function drawEmoji(ctx: CanvasRenderingContext2D, emoji: string, x: number, y: n
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(emoji, x, y)
+}
+
+function drawRoundImage(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement | null,
+  x: number,
+  y: number,
+  size: number,
+  fallback: string,
+) {
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(x, y, size / 2, 0, Math.PI * 2)
+  ctx.clip()
+  if (image?.complete && image.naturalWidth > 0) {
+    ctx.drawImage(image, 0, image.naturalHeight * 0.03, image.naturalWidth, image.naturalHeight * 0.78, x - size / 2, y - size / 2, size, size)
+  } else {
+    ctx.fillStyle = '#fff7d8'
+    ctx.fillRect(x - size / 2, y - size / 2, size, size)
+    drawEmoji(ctx, fallback, x, y, size * 0.7)
+  }
+  ctx.restore()
+  ctx.strokeStyle = '#175f78'
+  ctx.lineWidth = Math.max(2, size * 0.08)
+  ctx.beginPath()
+  ctx.arc(x, y, size / 2, 0, Math.PI * 2)
+  ctx.stroke()
 }
 
 function useCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
@@ -356,56 +384,76 @@ function rectsOverlap(a: { x: number; y: number; w: number; h: number }, b: { x:
 
 function createPlatformLevel() {
   return {
-    worldWidth: 4800,
+    worldWidth: 6400,
     platforms: [
-      { x: 0, yOff: 0, w: 370, h: 34, kind: 'ground' },
-      { x: 455, yOff: 0, w: 330, h: 34, kind: 'ground' },
-      { x: 855, yOff: 0, w: 420, h: 34, kind: 'ground' },
-      { x: 1375, yOff: 0, w: 350, h: 34, kind: 'ground' },
-      { x: 1800, yOff: 0, w: 420, h: 34, kind: 'ground' },
-      { x: 2310, yOff: 0, w: 360, h: 34, kind: 'ground' },
-      { x: 2750, yOff: 0, w: 310, h: 34, kind: 'ground' },
-      { x: 3160, yOff: 0, w: 440, h: 34, kind: 'ground' },
-      { x: 3700, yOff: 0, w: 320, h: 34, kind: 'ground' },
-      { x: 4120, yOff: 0, w: 270, h: 34, kind: 'ground' },
-      { x: 4490, yOff: 0, w: 310, h: 34, kind: 'ground' },
-      { x: 210, yOff: 108, w: 130, h: 22, kind: 'brick' },
-      { x: 575, yOff: 150, w: 130, h: 22, kind: 'brick' },
-      { x: 970, yOff: 112, w: 170, h: 22, kind: 'brick' },
-      { x: 1475, yOff: 154, w: 145, h: 22, kind: 'brick' },
-      { x: 1945, yOff: 124, w: 135, h: 22, kind: 'brick' },
-      { x: 2395, yOff: 146, w: 150, h: 22, kind: 'brick' },
-      { x: 2860, yOff: 112, w: 140, h: 22, kind: 'brick' },
-      { x: 3285, yOff: 160, w: 150, h: 22, kind: 'brick' },
-      { x: 3775, yOff: 130, w: 140, h: 22, kind: 'brick' },
-      { x: 4190, yOff: 170, w: 135, h: 22, kind: 'brick' },
-      { x: 4560, yOff: 124, w: 130, h: 22, kind: 'brick' },
-      { x: 1245, yOff: 58, w: 70, h: 58, kind: 'pipe' },
-      { x: 2668, yOff: 58, w: 70, h: 58, kind: 'pipe' },
-      { x: 4058, yOff: 58, w: 70, h: 58, kind: 'pipe' },
+      { x: 0, yOff: 0, w: 420, h: 36, kind: 'ground' },
+      { x: 500, yOff: 0, w: 360, h: 36, kind: 'ground' },
+      { x: 940, yOff: 0, w: 400, h: 36, kind: 'ground' },
+      { x: 1430, yOff: 0, w: 390, h: 36, kind: 'ground' },
+      { x: 1910, yOff: 0, w: 440, h: 36, kind: 'ground' },
+      { x: 2440, yOff: 0, w: 390, h: 36, kind: 'ground' },
+      { x: 2920, yOff: 0, w: 430, h: 36, kind: 'ground' },
+      { x: 3440, yOff: 0, w: 390, h: 36, kind: 'ground' },
+      { x: 3920, yOff: 0, w: 440, h: 36, kind: 'ground' },
+      { x: 4450, yOff: 0, w: 430, h: 36, kind: 'ground' },
+      { x: 4970, yOff: 0, w: 420, h: 36, kind: 'ground' },
+      { x: 5480, yOff: 0, w: 880, h: 36, kind: 'ground' },
+      { x: 245, yOff: 90, w: 150, h: 24, kind: 'brick' },
+      { x: 610, yOff: 138, w: 165, h: 24, kind: 'brick' },
+      { x: 1025, yOff: 92, w: 170, h: 24, kind: 'brick' },
+      { x: 1215, yOff: 176, w: 150, h: 24, kind: 'brick' },
+      { x: 1510, yOff: 104, w: 160, h: 24, kind: 'brick' },
+      { x: 1965, yOff: 118, w: 155, h: 24, kind: 'brick' },
+      { x: 2188, yOff: 198, w: 165, h: 24, kind: 'brick' },
+      { x: 2545, yOff: 102, w: 165, h: 24, kind: 'brick' },
+      { x: 3035, yOff: 126, w: 170, h: 24, kind: 'brick' },
+      { x: 3260, yOff: 208, w: 160, h: 24, kind: 'brick' },
+      { x: 3620, yOff: 114, w: 160, h: 24, kind: 'brick' },
+      { x: 4075, yOff: 148, w: 165, h: 24, kind: 'brick' },
+      { x: 4315, yOff: 238, w: 150, h: 24, kind: 'brick' },
+      { x: 4690, yOff: 112, w: 170, h: 24, kind: 'brick' },
+      { x: 5195, yOff: 132, w: 170, h: 24, kind: 'brick' },
+      { x: 5435, yOff: 224, w: 160, h: 24, kind: 'brick' },
+      { x: 5845, yOff: 112, w: 165, h: 24, kind: 'brick' },
+      { x: 6070, yOff: 206, w: 160, h: 24, kind: 'brick' },
+      { x: 1320, yOff: 62, w: 74, h: 62, kind: 'pipe' },
+      { x: 2825, yOff: 62, w: 74, h: 62, kind: 'pipe' },
+      { x: 4475, yOff: 62, w: 74, h: 62, kind: 'pipe' },
+      { x: 5560, yOff: 62, w: 74, h: 62, kind: 'pipe' },
     ] as PlatformBlock[],
     items: [
-      { id: 1, x: 620, yOff: 205, taken: false },
-      { id: 2, x: 1280, yOff: 110, taken: false },
-      { id: 3, x: 1978, yOff: 180, taken: false },
-      { id: 4, x: 2440, yOff: 202, taken: false },
-      { id: 5, x: 2900, yOff: 164, taken: false },
-      { id: 6, x: 3330, yOff: 218, taken: false },
-      { id: 7, x: 3820, yOff: 184, taken: false },
-      { id: 8, x: 4245, yOff: 226, taken: false },
-      { id: 9, x: 4620, yOff: 178, taken: false },
+      { id: 1, x: 650, yOff: 184, taken: false },
+      { id: 2, x: 1288, yOff: 224, taken: false },
+      { id: 3, x: 2000, yOff: 166, taken: false },
+      { id: 4, x: 2268, yOff: 246, taken: false },
+      { id: 5, x: 2598, yOff: 150, taken: false },
+      { id: 6, x: 3120, yOff: 174, taken: false },
+      { id: 7, x: 3340, yOff: 256, taken: false },
+      { id: 8, x: 4155, yOff: 196, taken: false },
+      { id: 9, x: 4392, yOff: 286, taken: false },
+      { id: 10, x: 5278, yOff: 180, taken: false },
+      { id: 11, x: 5520, yOff: 272, taken: false },
+      { id: 12, x: 6150, yOff: 252, taken: false },
     ] as PlatformCollectible[],
     foes: [
-      { id: 1, x: 560, yOff: 34, w: 38, h: 36, vx: 45, minX: 500, maxX: 720, kind: 'wife', alive: true },
-      { id: 2, x: 1040, yOff: 34, w: 36, h: 34, vx: -50, minX: 900, maxX: 1215, kind: 'baby', alive: true },
-      { id: 3, x: 1530, yOff: 34, w: 38, h: 36, vx: 48, minX: 1415, maxX: 1680, kind: 'wife', alive: true },
-      { id: 4, x: 2045, yOff: 34, w: 36, h: 34, vx: -52, minX: 1850, maxX: 2170, kind: 'baby', alive: true },
-      { id: 5, x: 2440, yOff: 34, w: 38, h: 36, vx: 48, minX: 2340, maxX: 2625, kind: 'wife', alive: true },
-      { id: 6, x: 2910, yOff: 34, w: 36, h: 34, vx: -55, minX: 2790, maxX: 3030, kind: 'baby', alive: true },
-      { id: 7, x: 3310, yOff: 34, w: 38, h: 36, vx: 52, minX: 3200, maxX: 3540, kind: 'wife', alive: true },
-      { id: 8, x: 3820, yOff: 34, w: 36, h: 34, vx: -58, minX: 3730, maxX: 3970, kind: 'baby', alive: true },
-      { id: 9, x: 4250, yOff: 34, w: 38, h: 36, vx: 54, minX: 4160, maxX: 4350, kind: 'wife', alive: true },
-      { id: 10, x: 4590, yOff: 34, w: 36, h: 34, vx: -60, minX: 4510, maxX: 4760, kind: 'baby', alive: true },
+      { id: 1, x: 590, yOff: 36, w: 38, h: 36, vx: 50, minX: 520, maxX: 785, kind: 'wife', alive: true },
+      { id: 2, x: 1048, yOff: 34, w: 36, h: 34, vx: -56, minX: 950, maxX: 1245, kind: 'baby', alive: true },
+      { id: 3, x: 633, yOff: 172, w: 38, h: 36, vx: 44, minX: 615, maxX: 740, kind: 'wife', alive: true },
+      { id: 4, x: 1534, yOff: 140, w: 36, h: 34, vx: -48, minX: 1518, maxX: 1628, kind: 'baby', alive: true },
+      { id: 5, x: 2015, yOff: 36, w: 38, h: 36, vx: 58, minX: 1920, maxX: 2260, kind: 'wife', alive: true },
+      { id: 6, x: 2228, yOff: 232, w: 36, h: 34, vx: -44, minX: 2200, maxX: 2314, kind: 'baby', alive: true },
+      { id: 7, x: 2585, yOff: 136, w: 38, h: 36, vx: 48, minX: 2555, maxX: 2670, kind: 'wife', alive: true },
+      { id: 8, x: 3038, yOff: 34, w: 36, h: 34, vx: -62, minX: 2960, maxX: 3290, kind: 'baby', alive: true },
+      { id: 9, x: 3310, yOff: 244, w: 38, h: 36, vx: 46, minX: 3280, maxX: 3385, kind: 'wife', alive: true },
+      { id: 10, x: 3618, yOff: 148, w: 36, h: 34, vx: -50, minX: 3630, maxX: 3745, kind: 'baby', alive: true },
+      { id: 11, x: 4110, yOff: 184, w: 38, h: 36, vx: 52, minX: 4090, maxX: 4200, kind: 'wife', alive: true },
+      { id: 12, x: 4360, yOff: 272, w: 36, h: 34, vx: -46, minX: 4330, maxX: 4430, kind: 'baby', alive: true },
+      { id: 13, x: 4745, yOff: 36, w: 38, h: 36, vx: 64, minX: 4630, maxX: 4898, kind: 'wife', alive: true },
+      { id: 14, x: 5235, yOff: 166, w: 36, h: 34, vx: -50, minX: 5210, maxX: 5330, kind: 'baby', alive: true },
+      { id: 15, x: 5475, yOff: 260, w: 38, h: 36, vx: 48, minX: 5450, maxX: 5570, kind: 'wife', alive: true },
+      { id: 16, x: 5848, yOff: 146, w: 36, h: 34, vx: -54, minX: 5860, maxX: 5980, kind: 'baby', alive: true },
+      { id: 17, x: 6092, yOff: 242, w: 38, h: 36, vx: 52, minX: 6082, maxX: 6190, kind: 'wife', alive: true },
+      { id: 18, x: 6240, yOff: 34, w: 36, h: 34, vx: -64, minX: 5700, maxX: 6330, kind: 'baby', alive: true },
     ] as PlatformFoe[],
   }
 }
@@ -589,13 +637,21 @@ function Stage2({
         const rect = platformRect(block)
         const x = rect.x - cam
         if (x > w + 80 || x + rect.w < -80) return
-        ctx.fillStyle = block.kind === 'pipe' ? '#30a46c' : block.kind === 'brick' ? '#c66a2b' : '#8c5b28'
-        ctx.fillRect(x, rect.y, rect.w, rect.h)
-        ctx.fillStyle = block.kind === 'pipe' ? '#82d69f' : '#f5a623'
-        for (let bx = x + 4; bx < x + rect.w - 6; bx += 26) ctx.fillRect(bx, rect.y + 5, 16, 5)
-        if (block.kind === 'ground') {
+        if (block.kind === 'pipe') {
+          ctx.fillStyle = '#238b52'
+          ctx.fillRect(x, rect.y, rect.w, rect.h)
+          ctx.fillStyle = '#82d69f'
+          ctx.fillRect(x - 6, rect.y, rect.w + 12, 12)
+        } else {
+          ctx.fillStyle = block.kind === 'ground' ? '#8c5b28' : '#a9652d'
+          ctx.fillRect(x, rect.y, rect.w, rect.h)
           ctx.fillStyle = '#30a46c'
           ctx.fillRect(x, rect.y - 8, rect.w, 8)
+          ctx.fillStyle = 'rgba(255,255,255,.18)'
+          for (let bx = x + 8; bx < x + rect.w - 10; bx += 28) ctx.fillRect(bx, rect.y + 8, 16, 5)
+          ctx.strokeStyle = 'rgba(23,51,61,.18)'
+          ctx.lineWidth = 2
+          ctx.strokeRect(x, rect.y - 8, rect.w, rect.h + 8)
         }
       })
 
@@ -613,7 +669,7 @@ function Stage2({
       ctx.fillStyle = '#14333d'
       ctx.font = '900 18px Cairo, sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText(`قلوب ${s.heartsTaken}/9`, w / 2, 30)
+      ctx.fillText(`قلوب ${s.heartsTaken}/12`, w / 2, 30)
       ctx.fillText(`المسافة ${Math.round((player.x / level.worldWidth) * 100)}%`, w / 2, 56)
 
       level.items.forEach((item) => {
@@ -712,6 +768,7 @@ function Stage3({
   onFail: (kind: FailKind) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const headPhotoRef = useRef<HTMLImageElement | null>(null)
   useCanvas(canvasRef)
   const [hud, setHud] = useState<HudState>({ stage: 3, hearts: 3, wife })
   const [toast, setToast] = useState('اسحب أو استخدم الأزرار، كل رؤوس الرجال وكبّر الثعبان')
@@ -736,6 +793,12 @@ function Stage3({
   const cols = 16
   const rows = 18
   const winTarget = 25
+
+  useEffect(() => {
+    const image = new Image()
+    image.src = SNAKE_HEAD_SRC
+    headPhotoRef.current = image
+  }, [])
 
   const setDirection = useCallback((direction: SnakeDirection) => {
     const s = state.current
@@ -881,7 +944,7 @@ function Stage3({
         ctx.beginPath()
         ctx.roundRect(x + 2, y + 2, cell - 4, cell - 4, Math.max(5, cell * 0.28))
         ctx.fill()
-        if (index === 0) drawEmoji(ctx, '👀', x + cell / 2, y + cell / 2, cell * 0.62)
+        if (index === 0) drawRoundImage(ctx, headPhotoRef.current, x + cell / 2, y + cell / 2, cell * 0.96, '🧔')
       })
 
       ctx.fillStyle = '#14333d'
