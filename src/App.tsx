@@ -164,6 +164,10 @@ function Stage1({
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   useCanvas(canvasRef)
+  const wifeRef = useRef(wife)
+  useEffect(() => {
+    wifeRef.current = wife
+  }, [wife])
   const [hud, setHud] = useState<HudState>({ stage: 1, hearts: 3, wife })
   const [toast, setToast] = useState('حرّك المضرب واضرب الرضاعة لفم البيبي')
   const state = useRef({
@@ -327,12 +331,12 @@ function Stage1({
       ctx.fillText(`${s.feeds}/5`, w / 2, h - 24)
       ctx.font = '900 14px Cairo, sans-serif'
       ctx.fillText(`رالي ${s.hits}`, w / 2, h - 50)
-      setHud({ stage: 1, hearts: s.hearts, wife, mood: bottle.vy < 0 ? 'jump' : undefined })
+      setHud({ stage: 1, hearts: s.hearts, wife: wifeRef.current, mood: bottle.vy < 0 ? 'jump' : undefined })
       frame = requestAnimationFrame(loop)
     }
     frame = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(frame)
-  }, [onFail, onWin, setWife, wife])
+  }, [onFail, onWin, setWife])
 
   const move = (clientX: number) => {
     const canvas = canvasRef.current
@@ -479,6 +483,10 @@ function Stage2({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const photoRef = useRef<HTMLImageElement | null>(null)
   useCanvas(canvasRef)
+  const wifeRef = useRef(wife)
+  useEffect(() => {
+    wifeRef.current = wife
+  }, [wife])
   const [hud, setHud] = useState<HudState>({ stage: 2, hearts: 3, wife })
   const [toast, setToast] = useState('اضغط للقفز، تفادى الزوجة والطفل وخذ القلوب')
   const state = useRef({
@@ -493,6 +501,7 @@ function Stage2({
     player: { x: 74, y: 220, w: 40, h: 50, vy: 0, onGround: false, prevY: 220 },
     level: null as null | ReturnType<typeof createPlatformLevel>,
     done: false,
+    initialized: false,
   })
 
   useEffect(() => {
@@ -534,6 +543,13 @@ function Stage2({
       const elapsed = (now - s.start) / 1000
 
       const player = s.player
+      if (!s.initialized) {
+        s.initialized = true
+        player.y = floorY - player.h
+        player.prevY = player.y
+        player.vy = 0
+        player.onGround = true
+      }
       let failed = false
       const platformRect = (block: PlatformBlock) => ({ x: block.x, y: floorY - block.yOff, w: block.w, h: block.h })
       const hurt = (message: string) => {
@@ -547,7 +563,9 @@ function Stage2({
           return
         }
         s.invulnUntil = now + 1200
-        player.x = Math.max(74, player.x - 170)
+        const groundPlatforms = level.platforms.filter((block) => block.kind === 'ground')
+        const respawnPlatform = [...groundPlatforms].reverse().find((block) => block.x <= player.x) ?? groundPlatforms[0]
+        player.x = Math.max(74, respawnPlatform.x + 40)
         player.y = floorY - player.h
         player.vy = 0
         player.onGround = true
@@ -561,7 +579,8 @@ function Stage2({
       s.jumpQueued = false
 
       player.prevY = player.y
-      player.x = clamp(player.x + 142 * dt, 40, level.worldWidth - 90)
+      const runSpeed = now < s.invulnUntil ? 0 : 142
+      player.x = clamp(player.x + runSpeed * dt, 40, level.worldWidth - 90)
       player.vy += 1320 * dt
       player.y += player.vy * dt
       player.onGround = false
@@ -715,12 +734,12 @@ function Stage2({
       ctx.fillStyle = '#175f78'
       ctx.font = '900 16px Cairo, sans-serif'
       ctx.fillText('اضغط للقفز', w / 2, h - 17)
-      setHud({ stage: 2, hearts: s.hearts, wife, mood: player.onGround ? undefined : 'jump' })
+      setHud({ stage: 2, hearts: s.hearts, wife: wifeRef.current, mood: player.onGround ? undefined : 'jump' })
       frame = requestAnimationFrame(loop)
     }
     frame = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(frame)
-  }, [onFail, onWin, setWife, wife])
+  }, [onFail, onWin, setWife])
 
   const jump = () => {
     state.current.jumpQueued = true
@@ -776,6 +795,10 @@ function Stage3({
   const headPhotoRef = useRef<HTMLImageElement | null>(null)
   const targetPhotoRefs = useRef<HTMLImageElement[]>([])
   useCanvas(canvasRef)
+  const wifeRef = useRef(wife)
+  useEffect(() => {
+    wifeRef.current = wife
+  }, [wife])
   const [hud, setHud] = useState<HudState>({ stage: 3, hearts: 3, wife })
   const [toast, setToast] = useState('اسحب أو استخدم الأزرار، كل الوجوه وكبّر الثعبان')
   const state = useRef({
@@ -970,12 +993,12 @@ function Stage3({
       ctx.font = '900 18px Cairo, sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText(`الرؤوس ${s.eaten}/${winTarget}`, w / 2, h - 28)
-      setHud({ stage: 3, hearts: s.hearts, wife, mood: s.eaten % 5 === 0 && s.eaten > 0 ? 'jump' : undefined })
+      setHud({ stage: 3, hearts: s.hearts, wife: wifeRef.current, mood: s.eaten % 5 === 0 && s.eaten > 0 ? 'jump' : undefined })
       frame = requestAnimationFrame(loop)
     }
     frame = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(frame)
-  }, [onFail, onWin, resetSnake, spawnTarget, wife])
+  }, [onFail, onWin, resetSnake, spawnTarget])
 
   const handlePointerStart = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current
