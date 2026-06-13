@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
 import { CONFIG } from './config'
 import './App.css'
 
-type Screen = 'title' | 'howTo' | 'stage1' | 'stage2' | 'stage3' | 'win' | 'score' | 'leaderboard' | 'fail'
-type StageKey = 's1' | 's2' | 's3'
+type Screen = 'title' | 'howTo' | 'stage1' | 'stage2' | 'stage3' | 'win' | 'fail'
 type FailKind = 'FAIL_1' | 'FAIL_2' | 'FAIL_3'
 type HudState = { stage: number; hearts: number; wife: number; mood?: 'jump' | 'shake' | 'sweat' }
-type LeaderRow = { id?: string; name: string; score: number; rank?: number }
 
 const PLAYER_STAGE1_SRC = `${import.meta.env.BASE_URL}player-stage1.jpg`
 const SNAKE_HEAD_SRC = `${import.meta.env.BASE_URL}snake-head.jpg`
@@ -22,14 +19,6 @@ const snakeBoosts = ['شباب نطروني', 'يايكم بالطريج', 'حس
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
-const scoreBreakdown = (scores: Record<StageKey, number>, wife: number) => {
-  const stageTotal = Math.round(scores.s1 + scores.s2 + scores.s3)
-  const wifeBonus = Math.round(wife * 3)
-  const completionBonus = scores.s1 > 0 && scores.s2 > 0 && scores.s3 > 0 ? 500 : 0
-  const total = clamp(stageTotal + wifeBonus + completionBonus, 0, 6500)
-  return { stageTotal, wifeBonus, completionBonus, total }
-}
-const totalScore = (scores: Record<StageKey, number>, wife: number) => scoreBreakdown(scores, wife).total
 
 function drawEmoji(ctx: CanvasRenderingContext2D, emoji: string, x: number, y: number, size: number) {
   ctx.font = `${size}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`
@@ -101,7 +90,7 @@ function useNoLongPressSelection() {
   }, [])
 }
 
-function useStage2ActionAudio(active: boolean) {
+function useActionAudio(active: boolean, pattern: number[], interval = 190, volume = 0.035, wave: OscillatorType = 'square') {
   const audioRef = useRef<{
     context: AudioContext
     gain: GainNode
@@ -115,16 +104,15 @@ function useStage2ActionAudio(active: boolean) {
     if (!AudioContextCtor) return
     const context = new AudioContextCtor()
     const gain = context.createGain()
-    gain.gain.value = 0.035
+    gain.gain.value = volume
     gain.connect(context.destination)
-    const pattern = [196, 196, 233, 196, 262, 196, 233, 196]
     const playTick = () => {
       const now = context.currentTime
       const osc = context.createOscillator()
       const tickGain = context.createGain()
       const step = audioRef.current?.step ?? 0
-      osc.type = step % 4 === 0 ? 'triangle' : 'square'
-      osc.frequency.value = pattern[step]
+      osc.type = step % 4 === 0 ? 'triangle' : wave
+      osc.frequency.value = pattern[step] ?? pattern[0] ?? 220
       tickGain.gain.setValueAtTime(0.0001, now)
       tickGain.gain.exponentialRampToValueAtTime(0.11, now + 0.012)
       tickGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09)
@@ -136,12 +124,12 @@ function useStage2ActionAudio(active: boolean) {
     audioRef.current = {
       context,
       gain,
-      timer: window.setInterval(playTick, 190),
+      timer: window.setInterval(playTick, interval),
       step: 0,
     }
     void context.resume()
     playTick()
-  }, [active])
+  }, [active, interval, pattern, volume, wave])
 
   useEffect(() => {
     if (!active) return undefined
@@ -216,11 +204,12 @@ function Stage1({
 }: {
   wife: number
   setWife: (updater: (value: number) => number) => void
-  onWin: (score: number) => void
+  onWin: () => void
   onFail: (kind: FailKind) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   useCanvas(canvasRef)
+  const startActionAudio = useActionAudio(true, [523, 659, 784, 659, 587, 698], 240, 0.03, 'sine')
   const wifeRef = useRef(wife)
   useEffect(() => {
     wifeRef.current = wife
@@ -306,7 +295,7 @@ function Stage1({
           setToast(s.feeds >= 5 ? 'سليمان شبع وانفتح الطريق 🎉' : `رضعة ممتازة ${s.feeds}/5`)
           if (s.feeds >= 5 && !s.done) {
             s.done = true
-              onWin(Math.max(0, Math.round(1200 + s.hits * 35 - s.misses * 70 - elapsed * 4)))
+            onWin()
             return
           }
             resetBottle(1)
@@ -396,6 +385,7 @@ function Stage1({
   }, [onFail, onWin, setWife])
 
   const move = (clientX: number) => {
+    startActionAudio()
     const canvas = canvasRef.current
     if (!canvas) return
     const box = canvas.getBoundingClientRect()
@@ -534,7 +524,7 @@ function Stage2({
 }: {
   wife: number
   setWife: (updater: (value: number) => number) => void
-  onWin: (score: number) => void
+  onWin: () => void
   onFail: (kind: FailKind) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -544,15 +534,14 @@ function Stage2({
   useEffect(() => {
     wifeRef.current = wife
   }, [wife])
-  const startActionAudio = useStage2ActionAudio(true)
+  const startActionAudio = useActionAudio(true, [196, 196, 233, 196, 262, 196, 233, 196], 190, 0.035, 'square')
   const [hud, setHud] = useState<HudState>({ stage: 2, hearts: 3, wife })
-  const [toast, setToast] = useState('اضغط للقفز، تفادى الزوجة والطفل وخذ القلوب')
+  const [toast, setToast] = useState('تفادى الزوجة وسليمان وخذ القلوب')
   const state = useRef({
     start: 0,
     last: 0,
     hearts: 3,
     heartsTaken: 0,
-    score: 0,
     cameraX: 0,
     jumpQueued: false,
     invulnUntil: 0,
@@ -599,8 +588,6 @@ function Stage2({
       if (!s.start) s.start = now
       const dt = Math.min((now - (s.last || now)) / 1000, 0.04)
       s.last = now
-      const elapsed = (now - s.start) / 1000
-
       const player = s.player
       if (!s.initialized) {
         s.initialized = true
@@ -634,6 +621,7 @@ function Stage2({
         player.vy = -560
         player.onGround = false
         setToast('قفزة!')
+        setWife((value) => clamp(value + 1, 0, 100))
       }
       s.jumpQueued = false
 
@@ -665,8 +653,8 @@ function Stage2({
         if (rectsOverlap(playerRect, itemRect)) {
           item.taken = true
           s.heartsTaken += 1
-          s.score += 120
           s.hearts = Math.min(3, s.hearts + 1)
+          setWife((value) => clamp(value + 3, 0, 100))
           setToast('قلب إضافي ❤️')
         }
       }
@@ -684,7 +672,7 @@ function Stage2({
             foe.alive = false
             player.vy = -360
             player.onGround = false
-            s.score += 180
+            setWife((value) => clamp(value + 4, 0, 100))
             setToast(foe.kind === 'wife' ? 'قفزت فوق الزوجة!' : 'تفاديت سليمان!')
           } else {
             hurt(foe.kind === 'wife' ? 'الزوجة مسكتك 👸' : 'سليمان صادك 👶')
@@ -695,7 +683,7 @@ function Stage2({
 
       if (player.x >= level.worldWidth - 120 && !s.done) {
         s.done = true
-        onWin(Math.max(0, Math.round(1300 + s.score + s.heartsTaken * 100 + s.hearts * 170 - elapsed * 5)))
+        onWin()
         return
       }
 
@@ -756,8 +744,7 @@ function Stage2({
       ctx.fillStyle = '#14333d'
       ctx.font = '900 18px Cairo, sans-serif'
       ctx.textAlign = 'center'
-      ctx.fillText(`قلوب ${s.heartsTaken}/12`, w / 2, 30)
-      ctx.fillText(`المسافة ${Math.round((player.x / level.worldWidth) * 100)}%`, w / 2, 56)
+      ctx.fillText(`المسافة ${Math.round((player.x / level.worldWidth) * 100)}%`, w / 2, 36)
 
       level.items.forEach((item) => {
         if (item.taken) return
@@ -790,11 +777,6 @@ function Stage2({
       ctx.roundRect(playerScreenX - 6, player.y - 4, player.w + 12, player.h + 8, 13)
       ctx.stroke()
 
-      ctx.fillStyle = 'rgba(23,95,120,.14)'
-      ctx.fillRect(0, h - 42, w, 42)
-      ctx.fillStyle = '#175f78'
-      ctx.font = '900 16px Cairo, sans-serif'
-      ctx.fillText('اضغط للقفز', w / 2, h - 17)
       setHud({ stage: 2, hearts: s.hearts, wife: wifeRef.current, mood: player.onGround ? undefined : 'jump' })
       frame = requestAnimationFrame(loop)
     }
@@ -808,7 +790,7 @@ function Stage2({
   }
 
   return (
-    <StageShell hud={hud} title="طريق المنصات 🏁" toast={toast}>
+    <StageShell hud={hud} title="الطريق الى القصور 🏁" toast={toast}>
       <canvas
         ref={canvasRef}
         className="stage-canvas"
@@ -846,11 +828,13 @@ const oppositeDirection: Record<SnakeDirection, SnakeDirection> = {
 
 function Stage3({
   wife,
+  setWife,
   onWin,
   onFail,
 }: {
   wife: number
-  onWin: (score: number) => void
+  setWife: (updater: (value: number) => number) => void
+  onWin: () => void
   onFail: (kind: FailKind) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -863,11 +847,11 @@ function Stage3({
   }, [wife])
   const [hud, setHud] = useState<HudState>({ stage: 3, hearts: 3, wife })
   const [toast, setToast] = useState('اسحب أو استخدم الأزرار، كل الوجوه وكبّر الثعبان')
+  const startActionAudio = useActionAudio(true, [147, 196, 220, 247, 294, 247, 220, 196], 210, 0.032, 'sawtooth')
   const state = useRef({
     last: 0,
     lastStep: 0,
     hearts: 3,
-    score: 0,
     eaten: 0,
     direction: 'right' as SnakeDirection,
     nextDirection: 'right' as SnakeDirection,
@@ -881,6 +865,7 @@ function Stage3({
     touchStart: null as null | SnakeCell,
     wallGraceUntil: 0,
     pauseUntil: 0,
+    boostText: '',
     done: false,
   })
   const cols = 12
@@ -899,9 +884,10 @@ function Stage3({
   }, [])
 
   const setDirection = useCallback((direction: SnakeDirection) => {
+    startActionAudio()
     const s = state.current
     if (oppositeDirection[direction] !== s.direction) s.nextDirection = direction
-  }, [])
+  }, [startActionAudio])
 
   const spawnTarget = useCallback(() => {
     const s = state.current
@@ -930,6 +916,7 @@ function Stage3({
     s.lastStep = 0
     s.wallGraceUntil = 0
     s.pauseUntil = 0
+    s.boostText = ''
     spawnTarget()
   }, [spawnTarget])
 
@@ -1000,6 +987,7 @@ function Stage3({
         }
         if (wallHit || selfHit) {
           s.hearts -= 1
+          setWife((value) => clamp(value - 8, 0, 100))
           s.wallGraceUntil = 0
           setToast(wallHit ? 'دعمت بالطوفة!' : 'عضّيت نفسك!')
           if (s.hearts <= 0) {
@@ -1012,18 +1000,20 @@ function Stage3({
           s.snake.unshift(nextHead)
           if (nextHead.x === s.target.x && nextHead.y === s.target.y) {
             s.eaten += 1
-            s.score += 120 + s.eaten * 8
+            setWife((value) => clamp(value + 2, 0, 100))
             if (s.eaten >= winTarget) {
               setToast('الثعبان شبع!')
             } else if (s.eaten % 3 === 0) {
               s.pauseUntil = now + 2000
-              setToast(snakeBoosts[(s.eaten / 3 - 1) % snakeBoosts.length])
+              s.boostText = snakeBoosts[(s.eaten / 3 - 1) % snakeBoosts.length]
+              setToast(s.boostText)
             } else {
+              s.boostText = ''
               setToast(`رأس جديد ${s.eaten}/${winTarget}`)
             }
             if (s.eaten >= winTarget && !s.done) {
               s.done = true
-              onWin(Math.max(0, Math.round(1600 + s.score + s.hearts * 220)))
+              onWin()
               return
             }
             spawnTarget()
@@ -1060,6 +1050,31 @@ function Stage3({
         if (index === 0) drawRoundImage(ctx, headPhotoRef.current, x + cell / 2, y + cell / 2, cell * 1.16, '🧔')
       })
 
+      if (now < s.pauseUntil) {
+        const message = s.boostText
+        const boxW = Math.min(boardW - 28, 330)
+        const boxH = 94
+        const boxX = ox + boardW / 2 - boxW / 2
+        const boxY = oy + boardH / 2 - boxH / 2
+        ctx.save()
+        ctx.fillStyle = 'rgba(255, 247, 216, .96)'
+        ctx.strokeStyle = '#175f78'
+        ctx.lineWidth = 4
+        ctx.shadowColor = 'rgba(23,51,61,.22)'
+        ctx.shadowBlur = 18
+        ctx.beginPath()
+        ctx.roundRect(boxX, boxY, boxW, boxH, 18)
+        ctx.fill()
+        ctx.stroke()
+        ctx.shadowBlur = 0
+        ctx.fillStyle = '#14333d'
+        ctx.font = '900 26px Cairo, sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(message, ox + boardW / 2, oy + boardH / 2)
+        ctx.restore()
+      }
+
       ctx.fillStyle = '#14333d'
       ctx.font = '900 18px Cairo, sans-serif'
       ctx.textAlign = 'center'
@@ -1069,7 +1084,7 @@ function Stage3({
     }
     frame = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(frame)
-  }, [onFail, onWin, resetSnake, spawnTarget])
+  }, [onFail, onWin, resetSnake, setWife, spawnTarget])
 
   const handlePointerStart = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current
@@ -1091,7 +1106,7 @@ function Stage3({
   }
 
   return (
-    <StageShell hud={hud} title="ثعبان الرؤوس 🐍" toast={toast} hideAvatar>
+    <StageShell hud={hud} title="الثعبان العظيم" toast={toast} hideAvatar>
       <canvas
         ref={canvasRef}
         className="stage-canvas snake-canvas"
@@ -1122,94 +1137,11 @@ function Stage3({
   )
 }
 
-function ScoreScreen({
-  scores,
-  wife,
-  onSubmit,
-}: {
-  scores: Record<StageKey, number>
-  wife: number
-  onSubmit: (name: string) => void
-}) {
-  const [name, setName] = useState(CONFIG.PLAYER_NAME)
-  const score = scoreBreakdown(scores, wife)
-  return (
-    <main className="game-screen card-screen">
-      <section className="panel score-panel">
-        <p className="eyebrow">سجّل النقاط 🏆</p>
-        <h1>الحسبة النهائية</h1>
-        <p className="score-formula">المعادلة: أداء المراحل + رضا الزوجة × ٣ + بونص إنهاء المهمة</p>
-        <dl>
-          <div><dt>المرحلة ١</dt><dd>{scores.s1}</dd></div>
-          <div><dt>المرحلة ٢</dt><dd>{scores.s2}</dd></div>
-          <div><dt>المرحلة ٣</dt><dd>{scores.s3}</dd></div>
-          <div><dt>أداء المراحل</dt><dd>{score.stageTotal}</dd></div>
-          <div><dt>رضا الزوجة × ٣</dt><dd>{score.wifeBonus}</dd></div>
-          <div><dt>بونص إنهاء المهمة</dt><dd>{score.completionBonus}</dd></div>
-          <div className="total"><dt>المجموع</dt><dd>{score.total}</dd></div>
-        </dl>
-        <label>
-          الاسم
-          <input value={name} maxLength={20} onChange={(event) => setName(event.target.value)} />
-        </label>
-        <button type="button" onClick={() => onSubmit(name.trim() || CONFIG.PLAYER_NAME)}>سجّل النقاط 🏆</button>
-      </section>
-      <PlayerAvatar wife={wife} mood="jump" />
-    </main>
-  )
-}
-
-function Leaderboard({
-  rows,
-  status,
-  playerName,
-  playerScore,
-  onRetry,
-  onRestart,
-}: {
-  rows: LeaderRow[]
-  status: string
-  playerName: string
-  playerScore: number
-  onRetry: () => void
-  onRestart: () => void
-}) {
-  return (
-    <main className="game-screen card-screen">
-      <section className="panel leaderboard">
-        <p className="eyebrow">ليدربورد</p>
-        <h1>أساطير الديوانية</h1>
-        <p>{status}</p>
-        {rows.length ? (
-          <ol>
-            {rows.slice(0, 10).map((row, index) => (
-              <li className={row.name === playerName && row.score === playerScore ? 'mine' : ''} key={`${row.name}-${row.score}-${index}`}>
-                <span>{index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}</span>
-                <strong>{row.name}</strong>
-                <b>{row.score}</b>
-              </li>
-            ))}
-          </ol>
-        ) : null}
-        <div className="actions">
-          {status.includes('خطأ') ? <button type="button" onClick={onRetry}>إعادة المحاولة</button> : null}
-          <button type="button" className="secondary" onClick={onRestart}>العب من جديد 🎮</button>
-        </div>
-      </section>
-      <PlayerAvatar wife={70} mood="jump" />
-    </main>
-  )
-}
-
 function App() {
   useNoLongPressSelection()
   const [screen, setScreen] = useState<Screen>('title')
   const [wife, setWifeRaw] = useState(35)
-  const [scores, setScores] = useState<Record<StageKey, number>>({ s1: 0, s2: 0, s3: 0 })
   const [failKind, setFailKind] = useState<FailKind>('FAIL_1')
-  const [playerName, setPlayerName] = useState(CONFIG.PLAYER_NAME)
-  const [rows, setRows] = useState<LeaderRow[]>([])
-  const [leaderStatus, setLeaderStatus] = useState('الليدربورد غير مفعّل بعد 🔌')
 
   const setWife = useCallback((updater: (value: number) => number) => {
     setWifeRaw((value) => clamp(Math.round(updater(value)), 0, 100))
@@ -1217,10 +1149,7 @@ function App() {
 
   const restart = () => {
     setWifeRaw(35)
-    setScores({ s1: 0, s2: 0, s3: 0 })
-    setRows([])
     setFailKind('FAIL_1')
-    setLeaderStatus('الليدربورد غير مفعّل بعد 🔌')
     setScreen('title')
   }
 
@@ -1229,44 +1158,13 @@ function App() {
     setScreen('fail')
   }
 
-  const submitScore = async (name: string) => {
-    const score = totalScore(scores, wife)
-    setPlayerName(name)
-    setScreen('leaderboard')
-    if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY) {
-      setRows([{ name, score, rank: 1 }])
-      setLeaderStatus('الليدربورد غير مفعّل بعد 🔌')
-      return
-    }
-    try {
-      setLeaderStatus('نرفع النتيجة...')
-      const client = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY)
-      const { error: insertError } = await client.from('leaderboard').insert({ name, score })
-      if (insertError) throw insertError
-      const { data, error } = await client.from('leaderboard').select('id,name,score').order('score', { ascending: false }).limit(50)
-      if (error) throw error
-      const best = new Map<string, LeaderRow>()
-      for (const row of data ?? []) {
-        const current = best.get(row.name)
-        if (!current || row.score > current.score) best.set(row.name, row)
-      }
-      setRows([...best.values()].sort((a, b) => b.score - a.score).map((row, index) => ({ ...row, rank: index + 1 })))
-      setLeaderStatus('تم التسجيل 🔥')
-    } catch {
-      setLeaderStatus('صار خطأ بالشبكة. جرّب مرة ثانية.')
-    }
-  }
-
   if (screen === 'stage1') {
     return (
       <Stage1
         wife={wife}
         setWife={setWife}
         onFail={fail}
-        onWin={(score) => {
-          setScores((value) => ({ ...value, s1: score }))
-          setScreen('stage2')
-        }}
+        onWin={() => setScreen('stage2')}
       />
     )
   }
@@ -1276,10 +1174,7 @@ function App() {
         wife={wife}
         setWife={setWife}
         onFail={fail}
-        onWin={(score) => {
-          setScores((value) => ({ ...value, s2: score }))
-          setScreen('stage3')
-        }}
+        onWin={() => setScreen('stage3')}
       />
     )
   }
@@ -1287,17 +1182,11 @@ function App() {
     return (
       <Stage3
         wife={wife}
+        setWife={setWife}
         onFail={fail}
-        onWin={(score) => {
-          setScores((value) => ({ ...value, s3: score }))
-          setScreen('win')
-        }}
+        onWin={() => setScreen('win')}
       />
     )
-  }
-  if (screen === 'score') return <ScoreScreen scores={scores} wife={wife} onSubmit={submitScore} />
-  if (screen === 'leaderboard') {
-    return <Leaderboard rows={rows} status={leaderStatus} playerName={playerName} playerScore={totalScore(scores, wife)} onRetry={() => submitScore(playerName)} onRestart={restart} />
   }
   if (screen === 'fail') {
     return (
@@ -1313,16 +1202,15 @@ function App() {
   }
   if (screen === 'win') {
     return (
-      <main className="game-screen card-screen win-screen" onClick={() => setScreen('score')}>
+      <main className="game-screen card-screen win-screen">
         <div className="confetti">🎉🔥🍔😂🎉🔥🍔😂</div>
         <section className="panel">
           <p className="eyebrow">وصلت الديوانية! 🎉</p>
           <h1>نجحت بالمهمة يا {CONFIG.PLAYER_NAME}!</h1>
           <div className="whatsapp">
             <p>الأسطورة وصل 🔥🔥🔥</p>
-            <p>اللي ما ييي ما يعرف شنو فاته</p>
           </div>
-          <button type="button">كمّل</button>
+          <button type="button" onClick={restart}>العب من جديد 🎮</button>
         </section>
         <PlayerAvatar wife={wife} mood="jump" />
       </main>
@@ -1336,7 +1224,7 @@ function App() {
           <h1>ثلاث ألعاب أسرع وأوضح</h1>
           <ul className="howto-list">
             <li>حرّك المضرب وردّ الرضاعة صوب فم سليمان 🍼</li>
-            <li>اضغط للقفز، تفادى الزوجة والطفل وخذ القلوب 🏁</li>
+            <li>تفادى الزوجة وسليمان وخذ القلوب 🏁</li>
             <li>حرّك الثعبان بالسحب أو الأزرار وكل الوجوه 🐍</li>
           </ul>
           <button type="button" onClick={() => setScreen('stage1')}>كمّل</button>
@@ -1348,7 +1236,6 @@ function App() {
   return (
     <main className="game-screen title-screen">
       <section className="title-hero">
-        <p className="eyebrow">نسخة اللعب الجديدة</p>
         <h1>بو رضّاعة: مهمة الذهاب للديوانية</h1>
         <p>٣ مراحل شد حيلك فيهم عشان مويس يقدر يحضر الديوانية 🔥</p>
         <div className="actions">

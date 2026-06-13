@@ -49,9 +49,7 @@
 .title-hero p,
 .panel p,
 .stage-title p,
-.howto-list,
-.leaderboard ol,
-.score-panel dl {
+.howto-list {
   margin: 0;
 }
 
@@ -107,8 +105,7 @@ button.secondary {
   background: #ffffff;
 }
 
-button:focus-visible,
-input:focus-visible {
+button:focus-visible {
   outline: 3px solid #30a46c;
   outline-offset: 3px;
 }
@@ -332,88 +329,8 @@ input:focus-visible {
   animation: shake 320ms ease both;
 }
 
-.score-panel dl {
-  display: grid;
-  gap: 10px;
-}
-
-.score-formula {
-  margin: 0 0 12px;
-  color: #52666c;
-  font-weight: 800;
-  line-height: 1.5;
-}
-
-.score-panel dl div,
-.leaderboard li {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 12px;
-  align-items: center;
-  padding: 12px;
-  border-radius: 14px;
-  background: rgba(23, 95, 120, 0.08);
-}
-
-.score-panel dt {
-  color: #52666c;
-}
-
-.score-panel dd {
-  margin: 0;
-  color: #175f78;
-  font-weight: 900;
-}
-
-.score-panel .total {
-  border: 1px solid rgba(23, 95, 120, 0.24);
-  background: rgba(23, 95, 120, 0.10);
-}
-
-label {
-  display: grid;
-  gap: 8px;
-  color: #52666c;
-  font-weight: 700;
-}
-
-input {
-  min-height: 52px;
-  border: 2px solid rgba(23, 95, 120, 0.35);
-  border-radius: 14px;
-  padding: 10px 14px;
-  color: #14333d;
-  background: #f7fbf7;
-  font: inherit;
-  font-weight: 700;
-}
-
-.leaderboard ol {
-  display: grid;
-  gap: 8px;
-  padding: 0;
-  list-style: none;
-}
-
-.leaderboard li {
-  grid-template-columns: 44px 1fr auto;
-}
-
-.leaderboard li.mine {
-  outline: 2px solid #30a46c;
-}
-
-.rank-note {
-  color: #175f78 !important;
-  font-weight: 900;
-}
-
 .fail-panel h1 {
   color: #b4232a;
-}
-
-.win-screen {
-  cursor: pointer;
 }
 
 .confetti {
